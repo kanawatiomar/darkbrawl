@@ -18,6 +18,7 @@ const STAM_JUMP    = 6.0
 const PORT         = 7777
 
 var players        : Dictionary = {}   # peer_id -> PlayerData
+var pending_peers  : Array      = []   # peers waiting to spawn when game starts
 var platform_nodes : Array      = []
 
 var state          : String = "menu"   # menu | playing | dead
@@ -135,10 +136,10 @@ func _host():
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	local_peer_id = 1
+	pending_peers.append(1)
 	status_text = "HOSTING on port %d  |  Your IP: (check ipconfig)  |  Waiting for players... [SPACE to start]" % PORT
 	_update_status()
 	state = "hosting"
-	_spawn_player(1)
 
 func _join(ip: String):
 	var peer = ENetMultiplayerPeer.new()
@@ -154,9 +155,9 @@ func _join(ip: String):
 	_update_status()
 
 func _on_peer_connected(id: int):
+	pending_peers.append(id)
 	status_text = "Player %d connected! [SPACE to start]" % id
 	_update_status()
-	_spawn_player(id)
 
 func _on_peer_disconnected(id: int):
 	if id in players:
@@ -166,6 +167,7 @@ func _on_peer_disconnected(id: int):
 
 func _on_connected():
 	local_peer_id = multiplayer.get_unique_id()
+	pending_peers.append(local_peer_id)
 	status_text = "Connected! Peer ID: %d  |  Waiting for host to start..." % local_peer_id
 	_update_status()
 	state = "joined"
@@ -181,6 +183,10 @@ func _start_game():
 	status_text = ""
 	_update_status()
 	_build_map()
+	# Spawn all pending players AFTER map is built
+	for pid in pending_peers:
+		_spawn_player(pid)
+	pending_peers.clear()
 
 # ─── Map ─────────────────────────────────────────────────────
 func _build_map():
