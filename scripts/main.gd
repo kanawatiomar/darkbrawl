@@ -214,24 +214,29 @@ func _build_ui():
 	canvas = CanvasLayer.new()
 	add_child(canvas)
 
+	# ── Menu-only overlay (hidden during gameplay) ──
+	var menu_overlay = Control.new()
+	menu_overlay.name = "MenuOverlay"
+	menu_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	canvas.add_child(menu_overlay)
+
 	# Atmospheric bg gradient bands
 	var band1 = ColorRect.new(); band1.color = Color(0.10,0.04,0.14,0.6)
 	band1.size = Vector2(1280,320); band1.position = Vector2(0,0)
-	canvas.add_child(band1)
+	menu_overlay.add_child(band1)
 	var band2 = ColorRect.new(); band2.color = Color(0.06,0.03,0.10,0.4)
 	band2.size = Vector2(1280,200); band2.position = Vector2(0,500)
-	canvas.add_child(band2)
+	menu_overlay.add_child(band2)
 
 	# Title glow shadow
 	var title_glow = Label.new()
-	title_glow.name = "TitleGlow"
 	title_glow.text = "⚔  DARKBRAWL  ⚔"
 	title_glow.position = Vector2(0, 142)
 	title_glow.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	title_glow.add_theme_font_size_override("font_size", 56)
 	title_glow.modulate = Color(0.6,0.05,0.05,0.35)
 	title_glow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	canvas.add_child(title_glow)
+	menu_overlay.add_child(title_glow)
 
 	# Main title
 	var title = Label.new()
@@ -242,44 +247,38 @@ func _build_ui():
 	title.add_theme_font_size_override("font_size", 56)
 	title.modulate = Color(0.92,0.20,0.20)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	canvas.add_child(title)
+	menu_overlay.add_child(title)
 
 	# Subtitle tagline
 	var sub = Label.new()
-	sub.name = "SubLabel"
 	sub.text = "dark fantasy arena brawler  •  online multiplayer"
 	sub.position = Vector2(0, 200)
 	sub.set_anchors_preset(Control.PRESET_CENTER_TOP)
 	sub.add_theme_font_size_override("font_size", 16)
 	sub.modulate = Color(0.5,0.4,0.6)
 	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	canvas.add_child(sub)
+	menu_overlay.add_child(sub)
 
 	# Divider line under title
 	var divider = ColorRect.new()
-	divider.name = "Divider"
 	divider.size = Vector2(500,2); divider.position = Vector2(390,228)
 	divider.color = Color(0.6,0.1,0.1,0.7)
-	canvas.add_child(divider)
+	menu_overlay.add_child(divider)
 
 	# Menu card background
 	var card = ColorRect.new()
-	card.name = "MenuCard"
 	card.color = Color(0.07,0.05,0.11,0.92)
 	card.size = Vector2(560,220); card.position = Vector2(360,260)
-	canvas.add_child(card)
+	menu_overlay.add_child(card)
 	var card_border_t = ColorRect.new(); card_border_t.size = Vector2(560,2); card_border_t.position = Vector2(360,260)
-	card_border_t.color = Color(0.5,0.1,0.5,0.6); canvas.add_child(card_border_t)
+	card_border_t.color = Color(0.5,0.1,0.5,0.6); menu_overlay.add_child(card_border_t)
 	var card_border_b = ColorRect.new(); card_border_b.size = Vector2(560,2); card_border_b.position = Vector2(360,480)
-	card_border_b.color = Color(0.5,0.1,0.5,0.6); canvas.add_child(card_border_b)
+	card_border_b.color = Color(0.5,0.1,0.5,0.6); menu_overlay.add_child(card_border_b)
 
 	# Action buttons display
-	var btn_host = _make_menu_btn("[ H ]  Host Game", Vector2(390,285), Color(0.85,0.25,0.25))
-	canvas.add_child(btn_host)
-	var btn_join = _make_menu_btn("[ J ]  Join Game", Vector2(390,335), Color(0.25,0.6,0.85))
-	canvas.add_child(btn_join)
-	var btn_tab  = _make_menu_btn("[ TAB ]  Controls", Vector2(390,385), Color(0.5,0.4,0.7))
-	canvas.add_child(btn_tab)
+	menu_overlay.add_child(_make_menu_btn("[ H ]  Host Game",   Vector2(390,285), Color(0.85,0.25,0.25)))
+	menu_overlay.add_child(_make_menu_btn("[ J ]  Join Game",   Vector2(390,335), Color(0.25,0.6,0.85)))
+	menu_overlay.add_child(_make_menu_btn("[ TAB ]  Controls",  Vector2(390,385), Color(0.5,0.4,0.7)))
 
 	# IP input label
 	var ip_hint = Label.new()
@@ -288,7 +287,7 @@ func _build_ui():
 	ip_hint.position = Vector2(390, 435)
 	ip_hint.add_theme_font_size_override("font_size", 13)
 	ip_hint.modulate = Color(0.5,0.5,0.6)
-	canvas.add_child(ip_hint)
+	menu_overlay.add_child(ip_hint)
 
 	ip_label = Label.new()
 	ip_label.position = Vector2(390,455)
@@ -371,10 +370,8 @@ func _build_controls_panel():
 func _update_status():
 	if status_label: status_label.text = status_text
 	if ip_label: ip_label.text = ("> " + ip_input) if state == "menu" else ""
-	var is_menu = (state == "menu")
-	for node_name in ["TitleLabel","TitleGlow","SubLabel","Divider","MenuCard","IpHint"]:
-		var n = canvas.get_node_or_null(node_name)
-		if n: n.visible = is_menu
+	var menu_overlay = canvas.get_node_or_null("MenuOverlay")
+	if menu_overlay: menu_overlay.visible = (state == "menu")
 
 # ─── Input ───────────────────────────────────────────────────
 func _input(event):
@@ -531,12 +528,15 @@ func _refresh_loadout_panel():
 	detail_bg.size = Vector2(380, 480); detail_bg.position = Vector2(308, 70)
 	loadout_panel.add_child(detail_bg)
 
-	# Archetype name + icon
+	# Archetype name + icon — adaptive font size for long names
 	var big_name = Label.new()
 	big_name.text = "%s  %s" % [arch["icon"], arch["name"].to_upper()]
 	big_name.position = Vector2(318, 85)
-	big_name.add_theme_font_size_override("font_size", 32)
+	var name_font_size = 32 if arch["name"].length() <= 10 else (24 if arch["name"].length() <= 16 else 19)
+	big_name.add_theme_font_size_override("font_size", name_font_size)
 	big_name.modulate = arch["color"]
+	big_name.size = Vector2(370, 50)
+	big_name.autowrap_mode = TextServer.AUTOWRAP_OFF
 	loadout_panel.add_child(big_name)
 
 	var big_tag = Label.new()
