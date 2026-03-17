@@ -36,6 +36,7 @@ class PlayerData:
 	var label         : Label
 	var stamina_bar   : ColorRect
 	var ability_bar   : ColorRect
+	var arrow_indicator : Control  # off-screen direction arrow
 	var facing        : float  = 1.0
 	var velocity      : Vector2 = Vector2.ZERO
 	var knockback     : Vector2 = Vector2.ZERO
@@ -409,6 +410,31 @@ func _spawn_player(peer_id: int):
 	pd.lives    = 3
 	pd.set_meta("stamina", MAX_STAMINA)
 
+	# Off-screen arrow indicator (lives in canvas layer so it's always visible)
+	var arrow_root = Control.new()
+	arrow_root.visible = false
+	arrow_root.z_index = 10
+
+	# Arrow triangle shape using a label emoji + bg panel
+	var arrow_bg = ColorRect.new()
+	arrow_bg.size     = Vector2(54, 22)
+	arrow_bg.position = Vector2(-27, -11)
+	arrow_bg.color    = Color(pd.color.r, pd.color.g, pd.color.b, 0.85)
+	arrow_root.add_child(arrow_bg)
+
+	var arrow_lbl = Label.new()
+	arrow_lbl.name = "ArrowLabel"
+	arrow_lbl.add_theme_font_size_override("font_size", 12)
+	arrow_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	arrow_lbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
+	arrow_lbl.size     = Vector2(54, 22)
+	arrow_lbl.position = Vector2(-27, -11)
+	arrow_lbl.modulate = Color(0.05, 0.05, 0.05)
+	arrow_root.add_child(arrow_lbl)
+
+	canvas.add_child(arrow_root)
+	pd.arrow_indicator = arrow_root
+
 	world.add_child(body)
 	players[peer_id] = pd
 
@@ -421,6 +447,8 @@ func _respawn_player(pd: PlayerData):
 	pd.is_dead    = false
 	pd.jumps_left = 2
 	pd.set_meta("stamina", MAX_STAMINA)
+	if pd.arrow_indicator:
+		pd.arrow_indicator.visible = false
 
 # ─── Process ─────────────────────────────────────────────────
 func _process(delta):
@@ -535,6 +563,9 @@ func _process_players(delta):
 		var ab_pct = 1.0 - clamp(pd.special_cd / 4.0, 0.0, 1.0)
 		pd.ability_bar.size.x = max(0, ab_pct * 42.0)
 
+		# Off-screen arrow indicator
+		_update_arrow(pd, vp)
+
 		# Death zone
 		var margin = 320
 		if pd.node.position.x < -margin or pd.node.position.x > vp.x + margin \
@@ -546,6 +577,57 @@ func _process_players(delta):
 			else:
 				_respawn_player(pd)
 				_show_respawn_flash(pd)
+
+# ─── Off-Screen Arrow ────────────────────────────────────────
+func _update_arrow(pd: PlayerData, vp: Vector2):
+	if not pd.arrow_indicator or not pd.node:
+		return
+
+	var pos = pd.node.position
+	var padding = 30.0
+
+	# Is the player on-screen?
+	var on_screen = (pos.x > padding and pos.x < vp.x - padding
+		and pos.y > padding and pos.y < vp.y - padding)
+
+	if on_screen or pd.is_dead:
+		pd.arrow_indicator.visible = false
+		return
+
+	pd.arrow_indicator.visible = true
+
+	# Direction from screen center to player
+	var center = vp * 0.5
+	var dir    = (pos - center).normalized()
+
+	# Find where the ray from center hits the screen edge
+	var edge   = _ray_to_screen_edge(center, dir, vp, padding)
+	pd.arrow_indicator.position = edge
+
+	# Arrow symbol pointing in direction (8 directions)
+	var angle  = dir.angle()
+	var deg    = fmod(rad_to_deg(angle) + 360.0, 360.0)
+	var arrows = ["→","↘","↓","↙","←","↖","↑","↗"]
+	var idx    = int(round(deg / 45.0)) % 8
+	var lbl    = pd.arrow_indicator.get_node_or_null("ArrowLabel")
+	if lbl:
+		lbl.text = "P%d %s %.0f%%" % [pd.peer_id, arrows[idx], pd.damage_pct]
+
+func _ray_to_screen_edge(origin: Vector2, dir: Vector2, vp: Vector2, pad: float) -> Vector2:
+	var t_min = INF
+	# Left edge
+	if dir.x < -0.001:
+		t_min = min(t_min, (pad - origin.x) / dir.x)
+	# Right edge
+	if dir.x > 0.001:
+		t_min = min(t_min, (vp.x - pad - origin.x) / dir.x)
+	# Top edge
+	if dir.y < -0.001:
+		t_min = min(t_min, (pad - origin.y) / dir.y)
+	# Bottom edge
+	if dir.y > 0.001:
+		t_min = min(t_min, (vp.y - pad - origin.y) / dir.y)
+	return origin + dir * t_min
 
 # ─── Combat ──────────────────────────────────────────────────
 func _do_attack(attacker: PlayerData, radius: float, dmg_base: float, kb_base: float):
