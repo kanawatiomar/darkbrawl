@@ -205,34 +205,114 @@ func _setup_input_map():
 
 # ─── UI ──────────────────────────────────────────────────────
 func _build_ui():
+	# Deep background
 	var bg = ColorRect.new()
-	bg.color = Color(0.07,0.05,0.10)
+	bg.color = Color(0.04,0.03,0.07)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 
 	canvas = CanvasLayer.new()
 	add_child(canvas)
 
+	# Atmospheric bg gradient bands
+	var band1 = ColorRect.new(); band1.color = Color(0.10,0.04,0.14,0.6)
+	band1.size = Vector2(1280,320); band1.position = Vector2(0,0)
+	canvas.add_child(band1)
+	var band2 = ColorRect.new(); band2.color = Color(0.06,0.03,0.10,0.4)
+	band2.size = Vector2(1280,200); band2.position = Vector2(0,500)
+	canvas.add_child(band2)
+
+	# Title glow shadow
+	var title_glow = Label.new()
+	title_glow.name = "TitleGlow"
+	title_glow.text = "⚔  DARKBRAWL  ⚔"
+	title_glow.position = Vector2(0, 142)
+	title_glow.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	title_glow.add_theme_font_size_override("font_size", 56)
+	title_glow.modulate = Color(0.6,0.05,0.05,0.35)
+	title_glow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	canvas.add_child(title_glow)
+
+	# Main title
 	var title = Label.new()
 	title.name = "TitleLabel"
 	title.text = "⚔  DARKBRAWL  ⚔"
-	title.position = Vector2(640,180)
-	title.add_theme_font_size_override("font_size", 52)
-	title.modulate = Color(0.85,0.25,0.25)
+	title.position = Vector2(0, 138)
 	title.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	title.add_theme_font_size_override("font_size", 56)
+	title.modulate = Color(0.92,0.20,0.20)
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	canvas.add_child(title)
 
-	status_label = Label.new()
-	status_label.position = Vector2(20,20)
-	status_label.add_theme_font_size_override("font_size", 15)
-	canvas.add_child(status_label)
+	# Subtitle tagline
+	var sub = Label.new()
+	sub.name = "SubLabel"
+	sub.text = "dark fantasy arena brawler  •  online multiplayer"
+	sub.position = Vector2(0, 200)
+	sub.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	sub.add_theme_font_size_override("font_size", 16)
+	sub.modulate = Color(0.5,0.4,0.6)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	canvas.add_child(sub)
+
+	# Divider line under title
+	var divider = ColorRect.new()
+	divider.name = "Divider"
+	divider.size = Vector2(500,2); divider.position = Vector2(390,228)
+	divider.color = Color(0.6,0.1,0.1,0.7)
+	canvas.add_child(divider)
+
+	# Menu card background
+	var card = ColorRect.new()
+	card.name = "MenuCard"
+	card.color = Color(0.07,0.05,0.11,0.92)
+	card.size = Vector2(560,220); card.position = Vector2(360,260)
+	canvas.add_child(card)
+	var card_border_t = ColorRect.new(); card_border_t.size = Vector2(560,2); card_border_t.position = Vector2(360,260)
+	card_border_t.color = Color(0.5,0.1,0.5,0.6); canvas.add_child(card_border_t)
+	var card_border_b = ColorRect.new(); card_border_b.size = Vector2(560,2); card_border_b.position = Vector2(360,480)
+	card_border_b.color = Color(0.5,0.1,0.5,0.6); canvas.add_child(card_border_b)
+
+	# Action buttons display
+	var btn_host = _make_menu_btn("[ H ]  Host Game", Vector2(390,285), Color(0.85,0.25,0.25))
+	canvas.add_child(btn_host)
+	var btn_join = _make_menu_btn("[ J ]  Join Game", Vector2(390,335), Color(0.25,0.6,0.85))
+	canvas.add_child(btn_join)
+	var btn_tab  = _make_menu_btn("[ TAB ]  Controls", Vector2(390,385), Color(0.5,0.4,0.7))
+	canvas.add_child(btn_tab)
+
+	# IP input label
+	var ip_hint = Label.new()
+	ip_hint.name = "IpHint"
+	ip_hint.text = "Type IP address to join a remote host:"
+	ip_hint.position = Vector2(390, 435)
+	ip_hint.add_theme_font_size_override("font_size", 13)
+	ip_hint.modulate = Color(0.5,0.5,0.6)
+	canvas.add_child(ip_hint)
 
 	ip_label = Label.new()
-	ip_label.position = Vector2(20,48)
-	ip_label.add_theme_font_size_override("font_size", 20)
+	ip_label.position = Vector2(390,455)
+	ip_label.add_theme_font_size_override("font_size", 18)
 	ip_label.modulate = Color(0.8,0.9,1.0)
 	canvas.add_child(ip_label)
+
+	# Status bar at bottom
+	var status_bg = ColorRect.new()
+	status_bg.color = Color(0.0,0.0,0.0,0.6)
+	status_bg.size = Vector2(1280,32); status_bg.position = Vector2(0,688)
+	canvas.add_child(status_bg)
+	status_label = Label.new()
+	status_label.position = Vector2(16,691)
+	status_label.add_theme_font_size_override("font_size", 14)
+	status_label.modulate = Color(0.7,0.7,0.8)
+	canvas.add_child(status_label)
+
+	# Version tag
+	var ver = Label.new()
+	ver.text = "v0.7"; ver.position = Vector2(1230,691)
+	ver.add_theme_font_size_override("font_size", 13)
+	ver.modulate = Color(0.35,0.3,0.4)
+	canvas.add_child(ver)
 
 	_build_controls_panel()
 
@@ -240,6 +320,13 @@ func _build_ui():
 	add_child(world)
 
 	_update_status()
+
+func _make_menu_btn(txt:String, pos:Vector2, col:Color) -> Label:
+	var lbl = Label.new()
+	lbl.text = txt; lbl.position = pos
+	lbl.add_theme_font_size_override("font_size", 22)
+	lbl.modulate = col
+	return lbl
 
 func _build_controls_panel():
 	controls_panel = ColorRect.new()
@@ -284,8 +371,10 @@ func _build_controls_panel():
 func _update_status():
 	if status_label: status_label.text = status_text
 	if ip_label: ip_label.text = ("> " + ip_input) if state == "menu" else ""
-	var title = canvas.get_node_or_null("TitleLabel")
-	if title: title.visible = (state == "menu")
+	var is_menu = (state == "menu")
+	for node_name in ["TitleLabel","TitleGlow","SubLabel","Divider","MenuCard","IpHint"]:
+		var n = canvas.get_node_or_null(node_name)
+		if n: n.visible = is_menu
 
 # ─── Input ───────────────────────────────────────────────────
 func _input(event):
@@ -1251,7 +1340,8 @@ func _activate_proxy_army(pd: PlayerData):
 		# Lil head on the soldier
 		var s_head = ColorRect.new(); s_head.size = Vector2(10,10); s_head.position = Vector2(1,-10)
 		s_head.color = Color(0.65,0.52,0.38); soldier.add_child(s_head)
-		var s_gun = ColorRect.new(); s_gun.size = Vector2(14,3); s_gun.position = Vector2(dir_x>0 ? 8 : -14,4)
+		var gun_x = 8 if dir_x > 0 else -14
+		var s_gun = ColorRect.new(); s_gun.size = Vector2(14,3); s_gun.position = Vector2(gun_x,4)
 		s_gun.color = Color(0.2,0.2,0.2); soldier.add_child(s_gun)
 
 		var fly = create_tween()
@@ -1259,19 +1349,21 @@ func _activate_proxy_army(pd: PlayerData):
 		fly.parallel().tween_property(soldier,"modulate:a",0.0,1.2)
 		fly.tween_callback(soldier.queue_free)
 
-		# Check hits during flight
+		# Hit detection — capture loop vars explicitly
+		var hit_dir = dir_x
+		var owner_id = pd.peer_id
 		var check_tween = create_tween()
-		for frame in range(8):
+		for _frame in range(8):
 			check_tween.tween_interval(0.12)
 			check_tween.tween_callback(func():
 				if not is_instance_valid(soldier): return
 				for pid2 in players:
-					if pid2 == pd.peer_id: continue
+					if pid2 == owner_id: continue
 					var t:PlayerData = players[pid2]
 					if not t.is_dead and t.node:
 						if soldier.position.distance_to(t.node.global_position) < 55:
 							t.damage_pct += 7.0
-							t.knockback += Vector2(dir_x*200,-50) * (1.0+t.damage_pct/80.0)
+							t.knockback += Vector2(hit_dir*200,-50) * (1.0+t.damage_pct/80.0)
 							_flash_player(t,Color(0.6,0.9,0.3))
 			)
 
