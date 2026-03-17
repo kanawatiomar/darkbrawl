@@ -117,6 +117,15 @@ const ARCHETYPES = [
 		"weapons": ["Longsword","Halberd","War Pick"],
 		"special": "Counter — brief parry window; if hit during it, reflect damage × 2"
 	},
+	{
+		"name": "Droid Netanyahu", "icon": "🎩",
+		"tagline": "Ceasefire is not in my vocabulary.",
+		"stats": {"str":2,"dex":-1,"int":2,"vit":2,"end":0},
+		"locked_out": ["dex"],
+		"color": Color(0.15,0.18,0.35),
+		"weapons": ["Iron Fist","F-35 Targeting System","UN Veto Stamp"],
+		"special": "GENOCIDE — calls in a full airstrike across the entire platform"
+	},
 ]
 const STAT_NAMES = ["STR","DEX","INT","VIT","END"]
 const STAT_KEYS  = ["str","dex","int","vit","end"]
@@ -745,10 +754,34 @@ func _spawn_player(peer_id: int):
 	var arm_r = ColorRect.new(); arm_r.name = "arm_r"; arm_r.size = Vector2(8,18); arm_r.position = Vector2(15,-18)
 	arm_r.color = lite; pivot.add_child(arm_r); pd.arm_r = arm_r
 
-	var head = ColorRect.new(); head.size = Vector2(24,20); head.position = Vector2(-12,-42); head.color = c
-	pivot.add_child(head)
-	var visor = ColorRect.new(); visor.size = Vector2(20,7); visor.position = Vector2(-10,-34)
-	visor.color = Color(min(c.r*1.8,1.0),min(c.g*1.8,1.0),min(c.b*1.8,1.0),0.95); pivot.add_child(visor)
+	if pd.archetype == "droid netanyahu":
+		# Bald head (large, skin-tone)
+		var big_head = ColorRect.new(); big_head.size = Vector2(32,26); big_head.position = Vector2(-16,-50)
+		big_head.color = Color(0.85,0.68,0.52); pivot.add_child(big_head)
+		# Jowls
+		var jowl_l = ColorRect.new(); jowl_l.size = Vector2(7,10); jowl_l.position = Vector2(-20,-36)
+		jowl_l.color = Color(0.78,0.62,0.48); pivot.add_child(jowl_l)
+		var jowl_r = ColorRect.new(); jowl_r.size = Vector2(7,10); jowl_r.position = Vector2(13,-36)
+		jowl_r.color = Color(0.78,0.62,0.48); pivot.add_child(jowl_r)
+		# Suit collar (white shirt)
+		var collar = ColorRect.new(); collar.size = Vector2(10,8); collar.position = Vector2(-5,-24)
+		collar.color = Color(0.95,0.95,0.95); pivot.add_child(collar)
+		# Red tie
+		var tie = ColorRect.new(); tie.size = Vector2(6,18); tie.position = Vector2(-3,-22)
+		tie.color = Color(0.85,0.12,0.12); pivot.add_child(tie)
+		# Eyes (dark beady)
+		var eye_l = ColorRect.new(); eye_l.size = Vector2(4,4); eye_l.position = Vector2(-9,-44)
+		eye_l.color = Color(0.1,0.1,0.1); pivot.add_child(eye_l)
+		var eye_r = ColorRect.new(); eye_r.size = Vector2(4,4); eye_r.position = Vector2(5,-44)
+		eye_r.color = Color(0.1,0.1,0.1); pivot.add_child(eye_r)
+		# Frown
+		var frown = ColorRect.new(); frown.size = Vector2(12,3); frown.position = Vector2(-6,-36)
+		frown.color = Color(0.4,0.25,0.2); pivot.add_child(frown)
+	else:
+		var head = ColorRect.new(); head.size = Vector2(24,20); head.position = Vector2(-12,-42); head.color = c
+		pivot.add_child(head)
+		var visor = ColorRect.new(); visor.size = Vector2(20,7); visor.position = Vector2(-10,-34)
+		visor.color = Color(min(c.r*1.8,1.0),min(c.g*1.8,1.0),min(c.b*1.8,1.0),0.95); pivot.add_child(visor)
 
 	var lbl = Label.new(); lbl.position = Vector2(-40,-68); lbl.add_theme_font_size_override("font_size", 13)
 	lbl.text = "P%d [%s]  0%%  ♥♥♥" % [peer_id, pd.archetype.substr(0,3).to_upper()]; lbl.modulate = pd.color
@@ -1057,9 +1090,66 @@ func _do_special(pd:PlayerData):
 			pd.counter_active = 0.6
 			_show_popup(pd, "COUNTER!", Color(1.0,1.0,0.3))
 			_spawn_particles(pd.node.position, Color(1.0,1.0,0.3), 10, Vector2(60,60), 0.4, 4.0)
+		"droid netanyahu":
+			_do_genocide(pd)
 		_:
 			_do_attack(pd, 110.0, 20.0, 360.0)
 			_spawn_particles(pd.node.position, Color(1.0,0.8,0.2), 12, Vector2(100,100), 0.5)
+
+func _do_genocide(pd: PlayerData):
+	_show_popup(pd, "GENOCIDE", Color(1.0, 0.1, 0.1))
+	var vp = get_viewport().get_visible_rect().size
+	# Screen flash white
+	var flash = ColorRect.new()
+	flash.color = Color(1.0, 0.9, 0.8, 0.0)
+	flash.size = vp; flash.position = Vector2.ZERO; flash.z_index = 20
+	world.add_child(flash)
+	var ftw = create_tween()
+	ftw.tween_property(flash, "color:a", 0.6, 0.1)
+	ftw.tween_property(flash, "color:a", 0.0, 0.4)
+	ftw.tween_callback(flash.queue_free)
+
+	# Drop 8 bombs across the map with staggered timing
+	for i in range(8):
+		var bomb_x = randf_range(80, vp.x - 80)
+		await get_tree().create_timer(0.15).timeout
+		_drop_bomb(pd, bomb_x, vp)
+
+func _drop_bomb(pd: PlayerData, bomb_x: float, vp: Vector2):
+	# Bomb visual — falls from top
+	var bomb = ColorRect.new()
+	bomb.size = Vector2(12, 20); bomb.color = Color(0.15, 0.15, 0.15)
+	bomb.position = Vector2(bomb_x, -20); bomb.z_index = 5
+	world.add_child(bomb)
+
+	# Fin detail
+	var fin = ColorRect.new(); fin.size = Vector2(18,8); fin.position = Vector2(-3,12)
+	fin.color = Color(0.3,0.3,0.3); bomb.add_child(fin)
+
+	var drop_tween = create_tween()
+	drop_tween.tween_property(bomb, "position:y", vp.y * 0.75, 0.35)
+	drop_tween.tween_callback(func():
+		bomb.queue_free()
+		# Explosion
+		var exp_pos = Vector2(bomb_x, vp.y * 0.75)
+		_spawn_particles(exp_pos, Color(1.0,0.6,0.1), 25, Vector2(160,120), 0.7, 7.0)
+		_spawn_particles(exp_pos, Color(1.0,0.2,0.05), 15, Vector2(80,80),  0.5, 5.0)
+		_spawn_particles(exp_pos, Color(0.3,0.3,0.3,0.8), 20, Vector2(120,200), 1.2, 4.0)  # smoke
+		# Screen shake
+		var cam_tween = create_tween()
+		cam_tween.tween_property(world, "position", Vector2(randf_range(-8,8), randf_range(-8,8)), 0.05)
+		cam_tween.tween_property(world, "position", Vector2.ZERO, 0.1)
+		# Damage all enemies in blast radius
+		for pid in players:
+			if pid == pd.peer_id: continue
+			var target: PlayerData = players[pid]
+			if target.is_dead or not target.node: continue
+			if abs(target.node.global_position.x - bomb_x) < 100:
+				var dir = Vector2(target.node.global_position.x - bomb_x, -1).normalized()
+				target.damage_pct += 14.0
+				target.knockback = dir * 380.0 * (1.0 + target.damage_pct / 80.0)
+				_flash_player(target, Color(1.0, 0.4, 0.0))
+	)
 
 func _get_nearest_enemy(pd:PlayerData) -> PlayerData:
 	var nearest = null; var nearest_dist = INF
