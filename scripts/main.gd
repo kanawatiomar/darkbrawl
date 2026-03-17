@@ -33,6 +33,7 @@ var show_controls   : bool       = false
 # Loadout state
 var loadout_archetype_idx : int    = 0
 var loadout_stat_idx      : int    = 0   # which stat is selected
+var loadout_weapon_idx    : int    = 0   # which weapon is selected
 var loadout_stats         : Array  = [3,3,2,4,3]  # STR DEX INT VIT END
 var loadout_ready         : bool   = false
 var loadout_panel         : Control
@@ -248,6 +249,7 @@ func _build_controls_panel():
 		"",
 		"  ─── LOADOUT SCREEN ──────────────────",
 		"  ↑ / ↓        Select archetype",
+		"  Z / X        Cycle weapon selection",
 		"  ← / →        Select stat",
 		"  + / -        Add / remove stat point",
 		"  ENTER        Ready up",
@@ -298,9 +300,19 @@ func _handle_loadout_input(event):
 	match event.keycode:
 		KEY_UP:
 			loadout_archetype_idx = (loadout_archetype_idx - 1 + ARCHETYPES.size()) % ARCHETYPES.size()
+			loadout_weapon_idx = 0
 			_refresh_loadout_panel()
 		KEY_DOWN:
 			loadout_archetype_idx = (loadout_archetype_idx + 1) % ARCHETYPES.size()
+			loadout_weapon_idx = 0
+			_refresh_loadout_panel()
+		KEY_Z:
+			var weapons = ARCHETYPES[loadout_archetype_idx]["weapons"]
+			loadout_weapon_idx = (loadout_weapon_idx - 1 + weapons.size()) % weapons.size()
+			_refresh_loadout_panel()
+		KEY_X:
+			var weapons = ARCHETYPES[loadout_archetype_idx]["weapons"]
+			loadout_weapon_idx = (loadout_weapon_idx + 1) % weapons.size()
 			_refresh_loadout_panel()
 		KEY_LEFT:
 			loadout_stat_idx = (loadout_stat_idx - 1 + STAT_NAMES.size()) % STAT_NAMES.size()
@@ -340,6 +352,7 @@ func _show_loadout_screen():
 	loadout_archetype_idx = 0
 	loadout_stats = [3,3,2,4,3]
 	loadout_stat_idx = 0
+	loadout_weapon_idx = 0
 	loadout_ready = false
 	_build_loadout_panel()
 
@@ -453,11 +466,17 @@ func _refresh_loadout_panel():
 
 	for i in range(arch["weapons"].size()):
 		var w = arch["weapons"][i]
+		var selected_w = (i == loadout_weapon_idx)
+		if selected_w:
+			var wsel_bg = ColorRect.new()
+			wsel_bg.color = Color(arch["color"].r,arch["color"].g,arch["color"].b,0.2)
+			wsel_bg.size = Vector2(362,20); wsel_bg.position = Vector2(316, 246+i*20)
+			loadout_panel.add_child(wsel_bg)
 		var wl = Label.new()
-		wl.text = ("▶ " if i == 0 else "  ") + w
+		wl.text = ("▶ " if selected_w else "  ") + w + ("  [Z/X to cycle]" if i == loadout_weapon_idx else "")
 		wl.position = Vector2(318, 248 + i*20)
 		wl.add_theme_font_size_override("font_size", 13)
-		wl.modulate = arch["color"] if i == 0 else Color(0.5,0.5,0.5)
+		wl.modulate = arch["color"] if selected_w else Color(0.5,0.5,0.5)
 		loadout_panel.add_child(wl)
 
 	# ── Stat Allocation ──
@@ -684,7 +703,7 @@ func _spawn_player(peer_id: int):
 	if peer_id == local_peer_id:
 		var arch    = ARCHETYPES[loadout_archetype_idx]
 		pd.archetype = arch["name"].to_lower()
-		pd.weapon    = arch["weapons"][0]
+		pd.weapon    = arch["weapons"][loadout_weapon_idx]
 		pd.stat_str  = loadout_stats[0]
 		pd.stat_dex  = loadout_stats[1]
 		pd.stat_int  = loadout_stats[2]
@@ -732,7 +751,7 @@ func _spawn_player(peer_id: int):
 	visor.color = Color(min(c.r*1.8,1.0),min(c.g*1.8,1.0),min(c.b*1.8,1.0),0.95); pivot.add_child(visor)
 
 	var lbl = Label.new(); lbl.position = Vector2(-40,-68); lbl.add_theme_font_size_override("font_size", 13)
-	lbl.text = "P%d [%s]  0%%" % [peer_id, pd.archetype.substr(0,3).to_upper()]; lbl.modulate = pd.color
+	lbl.text = "P%d [%s]  0%%  ♥♥♥" % [peer_id, pd.archetype.substr(0,3).to_upper()]; lbl.modulate = pd.color
 	body.add_child(lbl); pd.label = lbl
 
 	var stam_bg = ColorRect.new(); stam_bg.size = Vector2(44,5); stam_bg.position = Vector2(-22,-52)
@@ -860,7 +879,8 @@ func _process_players(delta):
 
 		_animate_player(pd, delta)
 
-		pd.label.text = "P%d [%s]  %.0f%%" % [peer_id, pd.archetype.substr(0,3).to_upper(), pd.damage_pct]
+		var hearts = "♥".repeat(pd.lives) + "♡".repeat(max(0, 3 - pd.lives))
+		pd.label.text = "P%d [%s]  %.0f%%  %s" % [peer_id, pd.archetype.substr(0,3).to_upper(), pd.damage_pct, hearts]
 		pd.stamina_bar.size.x = max(0, (stam/max_stam)*44.0)
 		pd.ability_bar.size.x = max(0, (1.0 - clamp(pd.special_cd/4.0,0.0,1.0))*44.0)
 		_update_arrow(pd, vp)
