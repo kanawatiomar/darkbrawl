@@ -50,6 +50,16 @@ class PlayerData:
 	var special_cd    : float  = 0.0
 	var color         : Color
 	var archetype     : String = "warrior"
+	
+	# Animation fields
+	var pivot         : Node2D
+	var anim_time     : float  = 0.0
+	var was_on_floor  : bool   = false
+	var is_attacking_anim : bool = false
+	var leg_l         : ColorRect
+	var leg_r         : ColorRect
+	var arm_r         : ColorRect
+	var body_rect     : ColorRect
 
 # ─── Node refs ───────────────────────────────────────────────
 var canvas          : CanvasLayer
@@ -352,21 +362,75 @@ func _spawn_player(peer_id: int):
 	col.shape    = shape
 	body.add_child(col)
 
-	# Body sprite
-	var sprite = ColorRect.new()
-	sprite.size     = Vector2(36, 52)
-	sprite.position = Vector2(-18, -26)
-	sprite.color    = pd.color
-	body.add_child(sprite)
+	# Create pivot (Node2D) for all animations
+	var pivot = Node2D.new()
+	pivot.position = Vector2(0, 0)
+	body.add_child(pivot)
+	pd.pivot = pivot
 
-	# Visor
+	# Shadow (oval beneath feet)
+	var shadow = ColorRect.new()
+	shadow.size     = Vector2(30, 6)
+	shadow.position = Vector2(-15, 20)
+	shadow.color    = Color(0.2, 0.15, 0.15, 0.5)
+	pivot.add_child(shadow)
+
+	# Left leg
+	var leg_l = ColorRect.new()
+	leg_l.size     = Vector2(10, 16)
+	leg_l.position = Vector2(-10, 12)
+	leg_l.color    = pd.color * Color(0.7, 0.7, 0.7)  # darkened 30%
+	pivot.add_child(leg_l)
+	pd.leg_l = leg_l
+
+	# Right leg
+	var leg_r = ColorRect.new()
+	leg_r.size     = Vector2(10, 16)
+	leg_r.position = Vector2(0, 12)
+	leg_r.color    = pd.color * Color(0.7, 0.7, 0.7)  # darkened 30%
+	pivot.add_child(leg_r)
+	pd.leg_r = leg_r
+
+	# Body
+	var body_rect = ColorRect.new()
+	body_rect.size     = Vector2(30, 32)
+	body_rect.position = Vector2(-15, -16)
+	body_rect.color    = pd.color
+	pivot.add_child(body_rect)
+	pd.body_rect = body_rect
+
+	# Left arm
+	var arm_l = ColorRect.new()
+	arm_l.size     = Vector2(8, 18)
+	arm_l.position = Vector2(-18, -10)
+	arm_l.color    = pd.color * Color(1.2, 1.2, 1.2)  # lightened 20%, clamped to max 1.0
+	arm_l.color.r = min(1.0, arm_l.color.r)
+	arm_l.color.g = min(1.0, arm_l.color.g)
+	arm_l.color.b = min(1.0, arm_l.color.b)
+	pivot.add_child(arm_l)
+
+	# Right arm
+	var arm_r = ColorRect.new()
+	arm_r.size     = Vector2(8, 18)
+	arm_r.position = Vector2(10, -10)
+	arm_r.color    = pd.color * Color(1.2, 1.2, 1.2)  # lightened 20%, clamped to max 1.0
+	arm_r.color.r = min(1.0, arm_r.color.r)
+	arm_r.color.g = min(1.0, arm_r.color.g)
+	arm_r.color.b = min(1.0, arm_r.color.b)
+	pivot.add_child(arm_r)
+	pd.arm_r = arm_r
+
+	# Visor (bright accent)
 	var visor = ColorRect.new()
-	visor.size     = Vector2(24, 8)
-	visor.position = Vector2(-12, -18)
+	visor.size     = Vector2(20, 7)
+	visor.position = Vector2(-10, -12)
 	visor.color    = Color(pd.color.r*1.4, pd.color.g*1.4, pd.color.b*1.4, 0.9)
-	body.add_child(visor)
+	visor.color.r = min(1.0, visor.color.r)
+	visor.color.g = min(1.0, visor.color.g)
+	visor.color.b = min(1.0, visor.color.b)
+	pivot.add_child(visor)
 
-	# Name + damage %
+	# Name + damage % (stays outside pivot)
 	var lbl = Label.new()
 	lbl.position = Vector2(-36, -58)
 	lbl.add_theme_font_size_override("font_size", 13)
@@ -375,14 +439,14 @@ func _spawn_player(peer_id: int):
 	body.add_child(lbl)
 	pd.label = lbl
 
-	# Stamina bar bg
+	# Stamina bar bg (stays outside pivot)
 	var stam_bg = ColorRect.new()
 	stam_bg.size     = Vector2(42, 5)
 	stam_bg.position = Vector2(-21, -42)
 	stam_bg.color    = Color(0.15, 0.15, 0.15)
 	body.add_child(stam_bg)
 
-	# Stamina bar fill (green)
+	# Stamina bar fill (green, stays outside pivot)
 	var stam_fill = ColorRect.new()
 	stam_fill.size     = Vector2(42, 5)
 	stam_fill.position = Vector2(-21, -42)
@@ -390,14 +454,14 @@ func _spawn_player(peer_id: int):
 	body.add_child(stam_fill)
 	pd.stamina_bar = stam_fill
 
-	# Ability cooldown bar bg
+	# Ability cooldown bar bg (stays outside pivot)
 	var ab_bg = ColorRect.new()
 	ab_bg.size     = Vector2(42, 4)
 	ab_bg.position = Vector2(-21, -36)
 	ab_bg.color    = Color(0.15, 0.15, 0.15)
 	body.add_child(ab_bg)
 
-	# Ability bar fill (purple)
+	# Ability bar fill (purple, stays outside pivot)
 	var ab_fill = ColorRect.new()
 	ab_fill.size     = Vector2(42, 4)
 	ab_fill.position = Vector2(-21, -36)
@@ -497,6 +561,9 @@ func _process_players(delta):
 			# Jump / double jump
 			if Input.is_action_just_pressed("p1_jump") and pd.jumps_left > 0 and stam >= STAM_JUMP:
 				pd.velocity.y = JUMP_FORCE if pd.jumps_left == 2 else JUMP_FORCE * 0.80
+				_spawn_particles(pd.node.position + Vector2(0,15), Color(0.5,0.5,0.5,0.7), 5, Vector2(35,6), 0.3, 3.0)
+				if pd.jumps_left == 1:  # About to be 0 (double jump)
+					_spawn_particles(pd.node.position, Color(0.5,0.9,1.0), 14, Vector2(75,75), 0.5, 4.0)
 				pd.jumps_left -= 1
 				stam -= STAM_JUMP
 				if pd.jumps_left == 0:
@@ -519,6 +586,7 @@ func _process_players(delta):
 				pd.attack_cd  = 0.55
 				stam -= STAM_ATTACK + 8
 				pd.velocity.y = -120.0
+				_spawn_particles(pd.node.position, Color(1.0,0.6,0.1), 10, Vector2(110,25), 0.4, 4.0)
 				_do_attack(pd, 100.0, 12.0, 300.0)
 				_show_popup(pd, "LUNGE!", Color(1.0, 0.6, 0.2))
 
@@ -562,6 +630,9 @@ func _process_players(delta):
 		pd.stamina_bar.size.x = max(0, (stam / MAX_STAMINA) * 42.0)
 		var ab_pct = 1.0 - clamp(pd.special_cd / 4.0, 0.0, 1.0)
 		pd.ability_bar.size.x = max(0, ab_pct * 42.0)
+
+		# Animation update
+		_animate_player(pd, delta)
 
 		# Off-screen arrow indicator
 		_update_arrow(pd, vp)
@@ -646,6 +717,7 @@ func _do_attack(attacker: PlayerData, radius: float, dmg_base: float, kb_base: f
 			target.damage_pct += dmg
 			var launch = kb_base * (1.0 + target.damage_pct / 80.0)
 			target.knockback = dir * launch
+			_spawn_particles(target.node.global_position, Color(1.0, 0.3, 0.1), 10, Vector2(90, 90), 0.35, 5.0)
 			_flash_player(target, Color(1.0, 0.25, 0.25))
 
 func _do_special(pd: PlayerData):
@@ -653,27 +725,102 @@ func _do_special(pd: PlayerData):
 		"warrior":
 			# Ground slam — AoE knockback downward
 			_do_attack(pd, 140.0, 18.0, 420.0)
+			_spawn_particles(pd.node.position, Color(0.9,0.5,0.1), 20, Vector2(180,60), 0.6)
 			_show_popup(pd, "SLAM!", Color(1.0, 0.5, 0.1))
 		"rogue":
 			# Triple quick strike
 			_do_attack(pd, 75.0, 7.0, 200.0)
+			_spawn_particles(pd.node.position, Color(0.3,1.0,0.4), 6, Vector2(70,70), 0.35, 4.0)
 			await get_tree().create_timer(0.1).timeout
 			_do_attack(pd, 75.0, 7.0, 200.0)
+			_spawn_particles(pd.node.position, Color(0.3,1.0,0.4), 6, Vector2(70,70), 0.35, 4.0)
 			await get_tree().create_timer(0.1).timeout
 			_do_attack(pd, 75.0, 7.0, 200.0)
+			_spawn_particles(pd.node.position, Color(0.3,1.0,0.4), 6, Vector2(70,70), 0.35, 4.0)
 			_show_popup(pd, "TRIPLE!", Color(0.4, 1.0, 0.4))
 		"sorcerer":
 			# Blast wave — big range, moderate knockback
 			_do_attack(pd, 200.0, 14.0, 380.0)
+			_spawn_particles(pd.node.position, Color(0.4,0.4,1.0), 25, Vector2(200,200), 0.7, 6.0)
 			_show_popup(pd, "BLAST!", Color(0.5, 0.5, 1.0))
 		"berserker":
 			# Rage slam — massive damage, short range
 			_do_attack(pd, 90.0, 28.0, 500.0)
+			_spawn_particles(pd.node.position, Color(1.0,0.1,0.1), 18, Vector2(110,110), 0.5, 5.0)
 			_show_popup(pd, "RAGE!", Color(1.0, 0.1, 0.1))
 		_:
 			# Default: power strike
 			_do_attack(pd, 110.0, 20.0, 360.0)
+			_spawn_particles(pd.node.position, Color(1.0,0.8,0.2), 12, Vector2(100,100), 0.5)
 			_show_popup(pd, "STRIKE!", Color(1.0, 0.8, 0.2))
+
+# ─── Animation ───────────────────────────────────────────────
+func _animate_player(pd: PlayerData, delta: float):
+	if not pd.node or not pd.pivot:
+		return
+	
+	pd.anim_time += delta
+	
+	var moving = abs(pd.velocity.x) > 20
+	var on_floor = pd.on_floor
+	
+	# Walk cycle
+	if moving and on_floor:
+		var leg_oscillation = sin(pd.anim_time * 10.0) * 5.0
+		pd.leg_l.position.y = 12 - leg_oscillation
+		pd.leg_r.position.y = 12 + leg_oscillation
+		pd.body_rect.rotation = pd.facing * 0.08
+	else:
+		# Idle
+		if on_floor:
+			pd.leg_l.position.y = 12
+			pd.leg_r.position.y = 12
+			var breathe = sin(Time.get_ticks_msec() * 0.002) * 0.02
+			pd.pivot.scale.y = 1.0 + breathe
+		pd.body_rect.rotation = 0.0
+	
+	# Jump state
+	if pd.velocity.y < -100:
+		pd.pivot.scale = Vector2(0.8, 1.25)
+	# Fall state
+	elif pd.velocity.y > 100 and not on_floor:
+		pd.pivot.scale = Vector2(1.1, 0.9)
+	# Landing
+	elif pd.was_on_floor == false and on_floor == true:
+		_spawn_particles(pd.node.position + Vector2(0,10), Color(0.6,0.5,0.4,0.8), 8, Vector2(60,10), 0.4)
+		var tw = create_tween()
+		tw.tween_property(pd.pivot, "scale", Vector2(1.3, 0.7), 0.06)
+		tw.tween_property(pd.pivot, "scale", Vector2(1.0, 1.0), 0.12)
+	# Dodge
+	elif pd.dash_t > 0:
+		pd.pivot.scale = Vector2(1.4, 0.7)
+	# Normal idle/walk
+	elif moving == false and on_floor:
+		pd.pivot.scale = Vector2(1.0, 1.0)
+	
+	# Attack animation
+	if pd.attack_cd > 0.3:
+		pd.arm_r.rotation = -1.2 * pd.facing
+		pd.body_rect.rotation = pd.facing * 0.2
+	else:
+		if not (moving and on_floor):
+			pd.arm_r.rotation = 0.0
+	
+	pd.was_on_floor = on_floor
+
+# ─── Particle System ──────────────────────────────────────────
+func _spawn_particles(pos: Vector2, color: Color, count: int, spread: Vector2, lifetime: float, size: float = 5.0):
+	for i in range(count):
+		var p = ColorRect.new()
+		p.size = Vector2(size, size)
+		p.color = color
+		p.position = pos
+		world.add_child(p)
+		var vel = Vector2(randf_range(-spread.x, spread.x), randf_range(-spread.y, spread.y))
+		var tw = create_tween()
+		tw.tween_property(p, "position", pos + vel, lifetime)
+		tw.parallel().tween_property(p, "modulate:a", 0.0, lifetime)
+		tw.tween_callback(p.queue_free)
 
 # ─── Visual Helpers ──────────────────────────────────────────
 func _flash_player(pd: PlayerData, col: Color):
