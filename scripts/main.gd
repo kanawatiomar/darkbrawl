@@ -1,54 +1,61 @@
 extends Node
 
-# ─── DarkBrawl Prototype v0.1 ────────────────────────────────
-# Everything built in code for reliability.
-# Host: run game, press H → share your IP
-# Join: run game, enter IP in box, press J
+# ─── DarkBrawl Prototype v0.2 ────────────────────────────────
+# Controls: A/D move | W jump (double jump available) | S dodge
+#           F attack | Q dash attack | E special ability | G emote
+# TAB = toggle controls overlay
+# Host: press H | Join: type IP then J | Start: SPACE
 
-const GRAVITY      = 980.0
-const JUMP_FORCE   = -520.0
-const MOVE_SPEED   = 280.0
-const DASH_SPEED   = 580.0
-const DASH_DUR     = 0.18
-const MAX_STAMINA  = 100.0
-const STAM_REGEN   = 20.0
-const STAM_ATTACK  = 15.0
-const STAM_DODGE   = 22.0
-const STAM_JUMP    = 6.0
-const PORT         = 7777
+const GRAVITY       = 980.0
+const JUMP_FORCE    = -740.0   # boosted — reaches all platforms
+const MOVE_SPEED    = 290.0
+const DASH_SPEED    = 600.0
+const DASH_DUR      = 0.18
+const MAX_STAMINA   = 100.0
+const STAM_REGEN    = 22.0
+const STAM_ATTACK   = 12.0
+const STAM_DODGE    = 20.0
+const STAM_JUMP     = 5.0
+const STAM_SPECIAL  = 30.0
+const PORT          = 7777
 
-var players        : Dictionary = {}   # peer_id -> PlayerData
-var pending_peers  : Array      = []   # peers waiting to spawn when game starts
-var platform_nodes : Array      = []
+var players         : Dictionary = {}
+var pending_peers   : Array      = []
+var platform_nodes  : Array      = []
 
-var state          : String = "menu"   # menu | playing | dead
-var ip_input       : String = ""
-var status_text    : String = "Press [H] to Host  |  Type IP then press [J] to Join"
-var local_peer_id  : int    = 1
+var state           : String = "menu"
+var ip_input        : String = ""
+var status_text     : String = "Press [H] to Host  |  Type IP then [J] to Join  |  [TAB] Controls"
+var local_peer_id   : int    = 1
+var show_controls   : bool   = false
 
 # ─── PlayerData ──────────────────────────────────────────────
 class PlayerData:
-	var peer_id    : int
-	var node       : CharacterBody2D
-	var label      : Label             # name/damage above head
-	var stamina_bar: ColorRect
-	var velocity   : Vector2 = Vector2.ZERO
-	var knockback  : Vector2 = Vector2.ZERO
-	var damage_pct : float   = 0.0
-	var lives      : int     = 3
-	var is_dead    : bool    = false
-	var on_floor   : bool    = false
-	var dash_t     : float   = 0.0
-	var attack_cd  : float   = 0.0
-	var attack_active : float = 0.0
-	var color      : Color
-	var archetype  : String  = "warrior"
+	var peer_id       : int
+	var node          : CharacterBody2D
+	var label         : Label
+	var stamina_bar   : ColorRect
+	var ability_bar   : ColorRect
+	var facing        : float  = 1.0
+	var velocity      : Vector2 = Vector2.ZERO
+	var knockback     : Vector2 = Vector2.ZERO
+	var damage_pct    : float  = 0.0
+	var lives         : int    = 3
+	var is_dead       : bool   = false
+	var on_floor      : bool   = false
+	var jumps_left    : int    = 2     # double jump
+	var dash_t        : float  = 0.0
+	var attack_cd     : float  = 0.0
+	var special_cd    : float  = 0.0
+	var color         : Color
+	var archetype     : String = "warrior"
 
 # ─── Node refs ───────────────────────────────────────────────
-var canvas        : CanvasLayer
-var status_label  : Label
-var ip_label      : Label
-var world         : Node2D
+var canvas          : CanvasLayer
+var status_label    : Label
+var ip_label        : Label
+var controls_panel  : Control
+var world           : Node2D
 
 # ─────────────────────────────────────────────────────────────
 func _ready():
@@ -58,9 +65,14 @@ func _ready():
 # ─── Input Map ───────────────────────────────────────────────
 func _setup_input_map():
 	var binds = {
-		"p1_left":   KEY_A,    "p1_right": KEY_D,
-		"p1_jump":   KEY_W,    "p1_dodge": KEY_S,
-		"p1_attack": KEY_F,    "p1_emote": KEY_G,
+		"p1_left":    KEY_A,
+		"p1_right":   KEY_D,
+		"p1_jump":    KEY_W,
+		"p1_dodge":   KEY_S,
+		"p1_attack":  KEY_F,
+		"p1_special": KEY_E,
+		"p1_dash_atk":KEY_Q,
+		"p1_emote":   KEY_G,
 	}
 	for action in binds:
 		if not InputMap.has_action(action):
@@ -71,7 +83,6 @@ func _setup_input_map():
 
 # ─── UI ──────────────────────────────────────────────────────
 func _build_ui():
-	# Background
 	var bg = ColorRect.new()
 	bg.color = Color(0.07, 0.05, 0.10)
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -80,30 +91,88 @@ func _build_ui():
 	canvas = CanvasLayer.new()
 	add_child(canvas)
 
+	# Title on menu
+	var title = Label.new()
+	title.name = "TitleLabel"
+	title.text = "⚔  DARKBRAWL  ⚔"
+	title.position = Vector2(640, 180)
+	title.add_theme_font_size_override("font_size", 52)
+	title.modulate = Color(0.85, 0.25, 0.25)
+	title.set_anchors_preset(Control.PRESET_CENTER_TOP)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	canvas.add_child(title)
+
 	status_label = Label.new()
 	status_label.position = Vector2(20, 20)
-	status_label.add_theme_font_size_override("font_size", 16)
+	status_label.add_theme_font_size_override("font_size", 15)
 	canvas.add_child(status_label)
 
 	ip_label = Label.new()
-	ip_label.position = Vector2(20, 50)
+	ip_label.position = Vector2(20, 48)
 	ip_label.add_theme_font_size_override("font_size", 20)
 	ip_label.modulate = Color(0.8, 0.9, 1.0)
 	canvas.add_child(ip_label)
+
+	_build_controls_panel()
 
 	world = Node2D.new()
 	add_child(world)
 
 	_update_status()
 
+func _build_controls_panel():
+	controls_panel = ColorRect.new()
+	controls_panel.color = Color(0.0, 0.0, 0.0, 0.82)
+	controls_panel.size = Vector2(420, 340)
+	controls_panel.position = Vector2(430, 190)
+	controls_panel.visible = false
+	canvas.add_child(controls_panel)
+
+	var lines = [
+		"  ─── CONTROLS ───────────────────────",
+		"",
+		"  A / D          Move left / right",
+		"  W              Jump  (press again = double jump)",
+		"  S              Dodge dash  (costs stamina)",
+		"  F              Attack  (melee)",
+		"  Q              Dash Attack  (lunge + hit)",
+		"  E              Special Ability",
+		"  G              Emote / taunt",
+		"",
+		"  ─── LOBBY ──────────────────────────",
+		"",
+		"  H              Host a game",
+		"  Type IP + J    Join a game",
+		"  SPACE          Start match",
+		"  R              Restart after game over",
+		"  TAB            Toggle this panel",
+	]
+	for i in range(lines.size()):
+		var lbl = Label.new()
+		lbl.text = lines[i]
+		lbl.position = Vector2(10, 10 + i * 18)
+		lbl.add_theme_font_size_override("font_size", 13)
+		lbl.modulate = Color(0.9, 0.85, 1.0)
+		controls_panel.add_child(lbl)
+
 func _update_status():
 	if status_label:
 		status_label.text = status_text
 	if ip_label:
-		ip_label.text = "> " + ip_input if state == "menu" else ""
+		ip_label.text = ("> " + ip_input) if state == "menu" else ""
+	# Hide title when not in menu
+	var title = canvas.get_node_or_null("TitleLabel")
+	if title:
+		title.visible = (state == "menu")
 
 # ─── Input ───────────────────────────────────────────────────
 func _input(event):
+	# TAB toggles controls panel anywhere
+	if event is InputEventKey and event.pressed and event.keycode == KEY_TAB:
+		show_controls = not show_controls
+		controls_panel.visible = show_controls
+		return
+
 	if state == "menu":
 		if event is InputEventKey and event.pressed:
 			match event.keycode:
@@ -137,7 +206,7 @@ func _host():
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	local_peer_id = 1
 	pending_peers.append(1)
-	status_text = "HOSTING on port %d  |  Your IP: (check ipconfig)  |  Waiting for players... [SPACE to start]" % PORT
+	status_text = "HOSTING port %d  |  Share your IP  |  [SPACE] start  |  [TAB] controls" % PORT
 	_update_status()
 	state = "hosting"
 
@@ -156,7 +225,7 @@ func _join(ip: String):
 
 func _on_peer_connected(id: int):
 	pending_peers.append(id)
-	status_text = "Player %d connected! [SPACE to start]" % id
+	status_text = "Player %d connected!  [SPACE] to start  |  [TAB] controls" % id
 	_update_status()
 
 func _on_peer_disconnected(id: int):
@@ -168,7 +237,7 @@ func _on_peer_disconnected(id: int):
 func _on_connected():
 	local_peer_id = multiplayer.get_unique_id()
 	pending_peers.append(local_peer_id)
-	status_text = "Connected! Peer ID: %d  |  Waiting for host to start..." % local_peer_id
+	status_text = "Connected! ID: %d  |  Waiting for host...  |  [TAB] controls" % local_peer_id
 	_update_status()
 	state = "joined"
 
@@ -183,156 +252,161 @@ func _start_game():
 	status_text = ""
 	_update_status()
 	_build_map()
-	# Spawn all pending players AFTER map is built
 	for pid in pending_peers:
 		_spawn_player(pid)
 	pending_peers.clear()
 
 # ─── Map ─────────────────────────────────────────────────────
 func _build_map():
-	# Clear old
 	for n in world.get_children():
 		n.queue_free()
 	platform_nodes.clear()
 
 	var vp = get_viewport().get_visible_rect().size
 
-	# Fog background panels
-	for i in range(8):
+	# Dark fog atmosphere
+	for i in range(10):
 		var fog = ColorRect.new()
-		fog.color = Color(randf_range(0.10,0.18), randf_range(0.06,0.10), randf_range(0.14,0.22), 0.18)
-		fog.size = Vector2(randf_range(80,220), randf_range(60,160))
+		fog.color = Color(randf_range(0.08,0.16), randf_range(0.04,0.08), randf_range(0.12,0.20), 0.15)
+		fog.size = Vector2(randf_range(100,260), randf_range(60,180))
 		fog.position = Vector2(randf_range(0, vp.x), randf_range(0, vp.y))
 		world.add_child(fog)
 
-	# Build platforms
-	var plat_data = [
-		# [x, y, w, moving, axis, dist, speed]
-		[vp.x * 0.5, vp.y * 0.80, 700, false, Vector2.ZERO,  0,   0],   # main floor
-		[vp.x * 0.22, vp.y * 0.58, 200, false, Vector2.ZERO, 0,   0],   # left solid
-		[vp.x * 0.78, vp.y * 0.58, 200, false, Vector2.ZERO, 0,   0],   # right solid
-		[vp.x * 0.50, vp.y * 0.44, 180, true,  Vector2(1,0), 170, 55],  # center moving H
-		[vp.x * 0.50, vp.y * 0.26, 140, true,  Vector2(0,1), 90,  70],  # high moving V
+	# Platform layout  [x%, y%, width, moving, axis, dist, speed]
+	var plats = [
+		[0.50, 0.82, 720, false, Vector2.ZERO,  0,   0  ],  # main floor
+		[0.20, 0.62, 210, false, Vector2.ZERO,  0,   0  ],  # left solid
+		[0.80, 0.62, 210, false, Vector2.ZERO,  0,   0  ],  # right solid
+		[0.50, 0.47, 190, true,  Vector2(1,0),  160, 52 ],  # center moving H
+		[0.28, 0.35, 150, false, Vector2.ZERO,  0,   0  ],  # upper left solid
+		[0.72, 0.35, 150, false, Vector2.ZERO,  0,   0  ],  # upper right solid
+		[0.50, 0.22, 130, true,  Vector2(0,1),  70,  65 ],  # top moving V
 	]
-
-	for pd in plat_data:
-		_add_platform(pd[0], pd[1], pd[2], pd[3], pd[4], pd[5], pd[6])
+	for p in plats:
+		_add_platform(vp.x*p[0], vp.y*p[1], p[2], p[3], p[4], p[5], p[6])
 
 func _add_platform(cx, cy, w, moving, axis, dist, spd):
-	var body : Node
-	if moving:
-		body = AnimatableBody2D.new()
-	else:
-		body = StaticBody2D.new()
-
+	var body = AnimatableBody2D.new() if moving else StaticBody2D.new()
 	body.position = Vector2(cx, cy)
+	body.collision_layer = 1
+	body.collision_mask  = 0
 
-	var col = CollisionShape2D.new()
+	var col   = CollisionShape2D.new()
 	var shape = RectangleShape2D.new()
 	shape.size = Vector2(w, 18)
-	col.shape = shape
+	col.shape  = shape
 	body.add_child(col)
 
 	var vis = ColorRect.new()
-	vis.size = Vector2(w, 18)
+	vis.size     = Vector2(w, 18)
 	vis.position = Vector2(-w * 0.5, -9)
-	if moving:
-		vis.color = Color(0.45, 0.15, 0.15)
-	else:
-		vis.color = Color(0.28, 0.20, 0.14)
+	vis.color    = Color(0.45, 0.15, 0.15) if moving else Color(0.28, 0.20, 0.14)
 	body.add_child(vis)
 
-	# Rune decoration line
-	var line = ColorRect.new()
-	line.size = Vector2(w, 2)
-	line.position = Vector2(-w * 0.5, -9)
-	line.color = Color(0.8, 0.5, 0.2, 0.4)
-	body.add_child(line)
+	var glow = ColorRect.new()
+	glow.size     = Vector2(w, 3)
+	glow.position = Vector2(-w * 0.5, -9)
+	glow.color    = Color(0.9, 0.4, 0.2, 0.5) if moving else Color(0.8, 0.5, 0.2, 0.3)
+	body.add_child(glow)
 
 	if moving:
 		body.set_meta("start_pos", Vector2(cx, cy))
 		body.set_meta("axis", axis)
 		body.set_meta("dist", dist)
-		body.set_meta("spd", spd)
-		body.set_meta("t", 0.0)
+		body.set_meta("spd",  spd)
+		body.set_meta("t",    0.0)
 		platform_nodes.append(body)
 
 	world.add_child(body)
 
 # ─── Player Spawn ────────────────────────────────────────────
-var SPAWN_POSITIONS = [
+var SPAWN_POS = [
 	Vector2(320, 350), Vector2(960, 350),
-	Vector2(640, 250), Vector2(640, 450)
+	Vector2(500, 250), Vector2(780, 250)
 ]
 var PLAYER_COLORS = [
-	Color(0.3, 0.6, 1.0),    # blue
-	Color(1.0, 0.3, 0.3),    # red
-	Color(0.3, 1.0, 0.5),    # green
-	Color(1.0, 0.85, 0.2),   # gold
+	Color(0.3, 0.6, 1.0),
+	Color(1.0, 0.3, 0.3),
+	Color(0.3, 1.0, 0.5),
+	Color(1.0, 0.85, 0.2),
 ]
+var ARCHETYPE_NAMES = ["warrior","rogue","sorcerer","berserker","paladin","phantom","hexblade","warden"]
 
 func _spawn_player(peer_id: int):
-	var pd = PlayerData.new()
-	pd.peer_id = peer_id
-	var idx = players.size() % 4
-	pd.color = PLAYER_COLORS[idx]
+	var pd       = PlayerData.new()
+	pd.peer_id   = peer_id
+	var idx      = players.size() % 4
+	pd.color     = PLAYER_COLORS[idx]
+	pd.archetype = ARCHETYPE_NAMES[idx % ARCHETYPE_NAMES.size()]
 
-	# Body
 	var body = CharacterBody2D.new()
-	body.position = SPAWN_POSITIONS[idx]
+	body.position        = SPAWN_POS[idx]
 	body.collision_layer = 2
-	body.collision_mask = 1
+	body.collision_mask  = 1
 
-	var col = CollisionShape2D.new()
+	var col   = CollisionShape2D.new()
 	var shape = CapsuleShape2D.new()
 	shape.radius = 18
 	shape.height = 50
-	col.shape = shape
+	col.shape    = shape
 	body.add_child(col)
 
-	# Sprite (colored rect + armor details)
+	# Body sprite
 	var sprite = ColorRect.new()
-	sprite.size = Vector2(36, 52)
+	sprite.size     = Vector2(36, 52)
 	sprite.position = Vector2(-18, -26)
-	sprite.color = pd.color
+	sprite.color    = pd.color
 	body.add_child(sprite)
 
-	# Visor accent
+	# Visor
 	var visor = ColorRect.new()
-	visor.size = Vector2(24, 8)
+	visor.size     = Vector2(24, 8)
 	visor.position = Vector2(-12, -18)
-	visor.color = Color(pd.color.r * 1.5, pd.color.g * 1.5, pd.color.b * 1.5, 0.8)
+	visor.color    = Color(pd.color.r*1.4, pd.color.g*1.4, pd.color.b*1.4, 0.9)
 	body.add_child(visor)
 
-	# Name/damage label
+	# Name + damage %
 	var lbl = Label.new()
-	lbl.position = Vector2(-30, -52)
+	lbl.position = Vector2(-36, -58)
 	lbl.add_theme_font_size_override("font_size", 13)
-	lbl.text = "P%d  0%%" % peer_id
+	lbl.text     = "P%d [%s]  0%%" % [peer_id, pd.archetype.substr(0,3).to_upper()]
 	lbl.modulate = pd.color
 	body.add_child(lbl)
 	pd.label = lbl
 
-	# Stamina bar background
+	# Stamina bar bg
 	var stam_bg = ColorRect.new()
-	stam_bg.size = Vector2(40, 5)
-	stam_bg.position = Vector2(-20, -38)
-	stam_bg.color = Color(0.2, 0.2, 0.2)
+	stam_bg.size     = Vector2(42, 5)
+	stam_bg.position = Vector2(-21, -42)
+	stam_bg.color    = Color(0.15, 0.15, 0.15)
 	body.add_child(stam_bg)
 
-	# Stamina bar fill
+	# Stamina bar fill (green)
 	var stam_fill = ColorRect.new()
-	stam_fill.size = Vector2(40, 5)
-	stam_fill.position = Vector2(-20, -38)
-	stam_fill.color = Color(0.2, 0.9, 0.4)
+	stam_fill.size     = Vector2(42, 5)
+	stam_fill.position = Vector2(-21, -42)
+	stam_fill.color    = Color(0.2, 0.9, 0.4)
 	body.add_child(stam_fill)
 	pd.stamina_bar = stam_fill
 
-	pd.node = body
-	pd.velocity = Vector2.ZERO
-	pd.lives = 3
+	# Ability cooldown bar bg
+	var ab_bg = ColorRect.new()
+	ab_bg.size     = Vector2(42, 4)
+	ab_bg.position = Vector2(-21, -36)
+	ab_bg.color    = Color(0.15, 0.15, 0.15)
+	body.add_child(ab_bg)
 
-	var stam_obj = RefCounted.new()
+	# Ability bar fill (purple)
+	var ab_fill = ColorRect.new()
+	ab_fill.size     = Vector2(42, 4)
+	ab_fill.position = Vector2(-21, -36)
+	ab_fill.color    = Color(0.7, 0.2, 1.0)
+	body.add_child(ab_fill)
+	pd.ability_bar = ab_fill
+
+	pd.node     = body
+	pd.velocity = Vector2.ZERO
+	pd.lives    = 3
 	pd.set_meta("stamina", MAX_STAMINA)
 
 	world.add_child(body)
@@ -340,37 +414,36 @@ func _spawn_player(peer_id: int):
 
 func _respawn_player(pd: PlayerData):
 	var idx = (pd.peer_id - 1) % 4
-	pd.node.position = SPAWN_POSITIONS[idx]
-	pd.velocity = Vector2.ZERO
+	pd.node.position = SPAWN_POS[idx]
+	pd.velocity  = Vector2.ZERO
 	pd.knockback = Vector2.ZERO
 	pd.damage_pct = 0.0
-	pd.is_dead = false
+	pd.is_dead    = false
+	pd.jumps_left = 2
 	pd.set_meta("stamina", MAX_STAMINA)
 
 # ─── Process ─────────────────────────────────────────────────
 func _process(delta):
-	# Space to start from hosting state
 	if (state == "hosting" or state == "joined") and Input.is_action_just_pressed("ui_accept"):
 		_start_game()
 		return
-
 	if state != "playing":
 		return
-
 	_move_platforms(delta)
 	_process_players(delta)
 	_check_game_over()
 
 func _move_platforms(delta):
 	for body in platform_nodes:
-		var t    = body.get_meta("t") + delta
+		var t  = body.get_meta("t") + delta
+		body.set_meta("t", t)
+		var sp   = body.get_meta("start_pos")
 		var axis = body.get_meta("axis")
 		var dist = body.get_meta("dist")
 		var spd  = body.get_meta("spd")
-		var sp   = body.get_meta("start_pos")
-		body.set_meta("t", t)
-		body.position = sp + axis * sin(t * spd / dist * 1.2) * dist
+		body.position = sp + axis * sin(t * spd / max(dist, 1.0) * 1.2) * dist
 
+# ─── Player Processing ───────────────────────────────────────
 func _process_players(delta):
 	var vp = get_viewport().get_visible_rect().size
 	for peer_id in players:
@@ -384,119 +457,171 @@ func _process_players(delta):
 		if not pd.on_floor:
 			pd.velocity.y += GRAVITY * delta
 
-		# Input — only drive local player
+		# Local player input
 		if peer_id == local_peer_id:
 			var dir = 0.0
 			if Input.is_action_pressed("p1_left"):  dir -= 1.0
 			if Input.is_action_pressed("p1_right"): dir += 1.0
 			pd.velocity.x = dir * MOVE_SPEED
+			if dir != 0:
+				pd.facing = dir
 
-			# Jump
-			if Input.is_action_just_pressed("p1_jump") and pd.on_floor and stam >= STAM_JUMP:
-				pd.velocity.y = JUMP_FORCE
+			# Jump / double jump
+			if Input.is_action_just_pressed("p1_jump") and pd.jumps_left > 0 and stam >= STAM_JUMP:
+				pd.velocity.y = JUMP_FORCE if pd.jumps_left == 2 else JUMP_FORCE * 0.80
+				pd.jumps_left -= 1
 				stam -= STAM_JUMP
+				if pd.jumps_left == 0:
+					_show_popup(pd, "↑↑", Color(0.6, 0.9, 1.0))
 
-			# Dodge
+			# Dodge dash
 			if Input.is_action_just_pressed("p1_dodge") and pd.on_floor and pd.dash_t <= 0 and stam >= STAM_DODGE:
 				pd.dash_t = DASH_DUR
 				stam -= STAM_DODGE
 
-			# Attack
+			# Basic attack
 			if Input.is_action_just_pressed("p1_attack") and pd.attack_cd <= 0 and stam >= STAM_ATTACK:
-				pd.attack_active = 0.25
-				pd.attack_cd = 0.45
+				pd.attack_cd = 0.42
 				stam -= STAM_ATTACK
-				_do_attack(pd)
+				_do_attack(pd, 85.0, 8.0, 240.0)
+
+			# Dash attack (Q) — lunge forward and hit
+			if Input.is_action_just_pressed("p1_dash_atk") and pd.attack_cd <= 0 and stam >= STAM_ATTACK + 8:
+				pd.dash_t     = 0.12
+				pd.attack_cd  = 0.55
+				stam -= STAM_ATTACK + 8
+				pd.velocity.y = -120.0
+				_do_attack(pd, 100.0, 12.0, 300.0)
+				_show_popup(pd, "LUNGE!", Color(1.0, 0.6, 0.2))
+
+			# Special ability (E)
+			if Input.is_action_just_pressed("p1_special") and pd.special_cd <= 0 and stam >= STAM_SPECIAL:
+				pd.special_cd = 4.0
+				stam -= STAM_SPECIAL
+				_do_special(pd)
 
 			# Emote
 			if Input.is_action_just_pressed("p1_emote"):
 				_show_emote(pd)
 
-		# Dash override
+		# Dash velocity override
 		if pd.dash_t > 0:
-			pd.dash_t -= delta
-			pd.velocity.x = sign(pd.velocity.x if pd.velocity.x != 0 else 1.0) * DASH_SPEED
+			pd.dash_t    -= delta
+			pd.velocity.x = pd.facing * DASH_SPEED
+
+		# Cooldowns
+		if pd.attack_cd  > 0: pd.attack_cd  -= delta
+		if pd.special_cd > 0: pd.special_cd -= delta
 
 		# Stamina regen
 		stam = min(MAX_STAMINA, stam + STAM_REGEN * delta)
 		pd.set_meta("stamina", stam)
 
-		# Cooldown tick
-		if pd.attack_cd > 0:   pd.attack_cd -= delta
-		if pd.attack_active > 0: pd.attack_active -= delta
-
-		# Apply knockback
+		# Knockback decay
 		pd.velocity += pd.knockback * delta
-		pd.knockback *= 0.80
+		pd.knockback *= 0.78
 
-		# Move
+		# Move + slide
 		pd.node.velocity = pd.velocity
 		pd.node.move_and_slide()
 		pd.on_floor = pd.node.is_on_floor()
 		if pd.on_floor:
 			pd.velocity.y = 0.0
+			pd.jumps_left  = 2   # reset double jump on landing
 
-		# Update HUD
-		pd.label.text = "P%d  %.0f%%" % [peer_id, pd.damage_pct]
-		var stam_w = (stam / MAX_STAMINA) * 40.0
-		pd.stamina_bar.size.x = max(0, stam_w)
+		# Update HUD bars
+		pd.label.text = "P%d [%s]  %.0f%%" % [peer_id, pd.archetype.substr(0,3).to_upper(), pd.damage_pct]
+		pd.stamina_bar.size.x = max(0, (stam / MAX_STAMINA) * 42.0)
+		var ab_pct = 1.0 - clamp(pd.special_cd / 4.0, 0.0, 1.0)
+		pd.ability_bar.size.x = max(0, ab_pct * 42.0)
 
-		# Death check
+		# Death zone
 		var margin = 320
 		if pd.node.position.x < -margin or pd.node.position.x > vp.x + margin \
 		or pd.node.position.y < -margin or pd.node.position.y > vp.y + margin:
 			pd.lives -= 1
 			if pd.lives <= 0:
-				pd.is_dead = true
-				pd.node.visible = false
+				pd.is_dead       = true
+				pd.node.visible  = false
 			else:
 				_respawn_player(pd)
 				_show_respawn_flash(pd)
 
-func _do_attack(attacker: PlayerData):
+# ─── Combat ──────────────────────────────────────────────────
+func _do_attack(attacker: PlayerData, radius: float, dmg_base: float, kb_base: float):
 	if not attacker.node:
 		return
-	var atk_pos = attacker.node.global_position
-	for peer_id in players:
-		if peer_id == attacker.peer_id:
+	var atk_pos = attacker.node.global_position + Vector2(attacker.facing * 30, 0)
+	for pid in players:
+		if pid == attacker.peer_id:
 			continue
-		var target : PlayerData = players[peer_id]
+		var target : PlayerData = players[pid]
 		if target.is_dead or not target.node:
 			continue
-		var dist = atk_pos.distance_to(target.node.global_position)
-		if dist < 90.0:
-			var dir = (target.node.global_position - atk_pos).normalized()
-			var dmg = 8.0 + randf_range(0, 4)
+		if atk_pos.distance_to(target.node.global_position) < radius:
+			var dir = (target.node.global_position - attacker.node.global_position).normalized()
+			var dmg = dmg_base + randf_range(0, 4)
 			target.damage_pct += dmg
-			# Knockback scales with victim damage %
-			var launch = 240.0 * (1.0 + target.damage_pct / 75.0)
+			var launch = kb_base * (1.0 + target.damage_pct / 80.0)
 			target.knockback = dir * launch
-			# Hit flash
-			_flash_player(target, Color(1, 0.3, 0.3))
+			_flash_player(target, Color(1.0, 0.25, 0.25))
 
-func _flash_player(pd: PlayerData, col: Color):
-	if pd.node and pd.node.get_child_count() > 0:
-		var sprite = pd.node.get_child(1)  # ColorRect sprite
-		if sprite is ColorRect:
-			var orig = pd.color
-			sprite.color = col
+func _do_special(pd: PlayerData):
+	match pd.archetype:
+		"warrior":
+			# Ground slam — AoE knockback downward
+			_do_attack(pd, 140.0, 18.0, 420.0)
+			_show_popup(pd, "SLAM!", Color(1.0, 0.5, 0.1))
+		"rogue":
+			# Triple quick strike
+			_do_attack(pd, 75.0, 7.0, 200.0)
 			await get_tree().create_timer(0.1).timeout
-			if sprite and is_instance_valid(sprite):
-				sprite.color = orig
+			_do_attack(pd, 75.0, 7.0, 200.0)
+			await get_tree().create_timer(0.1).timeout
+			_do_attack(pd, 75.0, 7.0, 200.0)
+			_show_popup(pd, "TRIPLE!", Color(0.4, 1.0, 0.4))
+		"sorcerer":
+			# Blast wave — big range, moderate knockback
+			_do_attack(pd, 200.0, 14.0, 380.0)
+			_show_popup(pd, "BLAST!", Color(0.5, 0.5, 1.0))
+		"berserker":
+			# Rage slam — massive damage, short range
+			_do_attack(pd, 90.0, 28.0, 500.0)
+			_show_popup(pd, "RAGE!", Color(1.0, 0.1, 0.1))
+		_:
+			# Default: power strike
+			_do_attack(pd, 110.0, 20.0, 360.0)
+			_show_popup(pd, "STRIKE!", Color(1.0, 0.8, 0.2))
+
+# ─── Visual Helpers ──────────────────────────────────────────
+func _flash_player(pd: PlayerData, col: Color):
+	if not pd.node or pd.node.get_child_count() < 2:
+		return
+	var sprite = pd.node.get_child(1)
+	if sprite is ColorRect:
+		sprite.color = col
+		await get_tree().create_timer(0.1).timeout
+		if is_instance_valid(sprite):
+			sprite.color = pd.color
+
+func _show_popup(pd: PlayerData, text: String, col: Color):
+	if not pd.node:
+		return
+	var lbl = Label.new()
+	lbl.text     = text
+	lbl.position = pd.node.position + Vector2(-28, -75)
+	lbl.add_theme_font_size_override("font_size", 17)
+	lbl.modulate = col
+	world.add_child(lbl)
+	var tw = create_tween()
+	tw.tween_property(lbl, "position:y", lbl.position.y - 55, 1.0)
+	tw.parallel().tween_property(lbl, "modulate:a", 0.0, 1.0)
+	tw.tween_callback(lbl.queue_free)
 
 func _show_emote(pd: PlayerData):
-	var emotes = ["GG", "EZ", "skill issue", "lol", "👋", "😂", "💀", "no way"]
-	var e = emotes[randi() % emotes.size()]
-	var lbl = Label.new()
-	lbl.text = e
-	lbl.position = pd.node.position + Vector2(-20, -80)
-	lbl.add_theme_font_size_override("font_size", 18)
-	lbl.modulate = Color(1, 0.9, 0.2)
-	world.add_child(lbl)
-	var tween = create_tween()
-	tween.tween_property(lbl, "position:y", lbl.position.y - 50, 1.2)
-	tween.parallel().tween_property(lbl, "modulate:a", 0.0, 1.2)
-	tween.tween_callback(lbl.queue_free)
+	var emotes = ["GG", "EZ", "skill issue", "lol 💀", "you're cooked", "get bodied",
+				  "imagine losing", "L + ratio", "stay free", "not even close"]
+	_show_popup(pd, emotes[randi() % emotes.size()], Color(1.0, 0.9, 0.2))
 
 func _show_respawn_flash(pd: PlayerData):
 	pd.node.visible = true
@@ -506,6 +631,7 @@ func _show_respawn_flash(pd: PlayerData):
 		pd.node.modulate.a = 1.0
 		await get_tree().create_timer(0.1).timeout
 
+# ─── Game Over ───────────────────────────────────────────────
 func _check_game_over():
 	var alive = []
 	for pid in players:
@@ -518,13 +644,9 @@ func _check_game_over():
 
 func _game_over(winner_id: int):
 	state = "gameover"
-	if winner_id == -1:
-		status_text = "DRAW!"
-	else:
-		status_text = "PLAYER %d WINS!  [R] to restart" % winner_id
+	status_text = ("DRAW!" if winner_id == -1 else "PLAYER %d WINS!" % winner_id) + "  |  [R] restart"
 	_update_status()
 
 func _unhandled_input(event):
-	if state == "gameover" and event is InputEventKey and event.pressed:
-		if event.keycode == KEY_R:
-			get_tree().reload_current_scene()
+	if state == "gameover" and event is InputEventKey and event.pressed and event.keycode == KEY_R:
+		get_tree().reload_current_scene()
