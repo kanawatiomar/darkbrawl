@@ -122,9 +122,9 @@ const ARCHETYPES = [
 		"tagline": "Ceasefire is not in my vocabulary.",
 		"stats": {"str":2,"dex":-1,"int":2,"vit":2,"end":0},
 		"locked_out": ["dex"],
-		"color": Color(0.15,0.18,0.35),
+		"color": Color(0.12,0.16,0.38),
 		"weapons": ["Iron Fist","F-35 Targeting System","UN Veto Stamp"],
-		"special": "GENOCIDE — calls in a full airstrike across the entire platform"
+		"special": "GENOCIDE — 8 airstrikes rain down across the entire map  |  Q = Iron Dome shield"
 	},
 ]
 const STAT_NAMES = ["STR","DEX","INT","VIT","END"]
@@ -534,16 +534,24 @@ func _refresh_loadout_panel():
 		sval.modulate = Color(0.9,0.9,0.9)
 		loadout_panel.add_child(sval)
 
+	# ── Weapon cycle hint (prominent) ──
+	var weap_hint = Label.new()
+	weap_hint.text = "[ Z ] ◀  cycle weapon  ▶ [ X ]"
+	weap_hint.position = Vector2(318, 300)
+	weap_hint.add_theme_font_size_override("font_size", 14)
+	weap_hint.modulate = Color(0.9,0.6,0.2)
+	loadout_panel.add_child(weap_hint)
+
 	# ── Ready / Start prompt ──
 	var ready_lbl = Label.new()
 	if loadout_ready:
 		ready_lbl.text = "✅ READY  —  Host: [SPACE] to start"
 		ready_lbl.modulate = Color(0.3,1.0,0.4)
 	else:
-		ready_lbl.text = "[ENTER] Ready Up    |    ↑↓ archetype    |    ←→ stat    |    +/- adjust"
+		ready_lbl.text = "[ENTER] Ready    ↑↓ archetype    ←→ stat    +/- points    Z/X weapon"
 		ready_lbl.modulate = Color(0.6,0.6,0.7)
-	ready_lbl.position = Vector2(30, 575)
-	ready_lbl.add_theme_font_size_override("font_size", 15)
+	ready_lbl.position = Vector2(30, 580)
+	ready_lbl.add_theme_font_size_override("font_size", 14)
 	loadout_panel.add_child(ready_lbl)
 
 func _stats_used() -> int:
@@ -755,28 +763,54 @@ func _spawn_player(peer_id: int):
 	arm_r.color = lite; pivot.add_child(arm_r); pd.arm_r = arm_r
 
 	if pd.archetype == "droid netanyahu":
-		# Bald head (large, skin-tone)
-		var big_head = ColorRect.new(); big_head.size = Vector2(32,26); big_head.position = Vector2(-16,-50)
-		big_head.color = Color(0.85,0.68,0.52); pivot.add_child(big_head)
-		# Jowls
-		var jowl_l = ColorRect.new(); jowl_l.size = Vector2(7,10); jowl_l.position = Vector2(-20,-36)
-		jowl_l.color = Color(0.78,0.62,0.48); pivot.add_child(jowl_l)
-		var jowl_r = ColorRect.new(); jowl_r.size = Vector2(7,10); jowl_r.position = Vector2(13,-36)
-		jowl_r.color = Color(0.78,0.62,0.48); pivot.add_child(jowl_r)
-		# Suit collar (white shirt)
-		var collar = ColorRect.new(); collar.size = Vector2(10,8); collar.position = Vector2(-5,-24)
+		# Override arm/leg color to suit colors (navy, no purple bleed)
+		arm_l.color = Color(0.12,0.16,0.38)
+		arm_r.color = Color(0.12,0.16,0.38)
+		leg_l.color = Color(0.10,0.12,0.30)
+		leg_r.color = Color(0.10,0.12,0.30)
+		body_rect.color = Color(0.12,0.16,0.38)  # dark navy suit
+
+		# Wide bald head — big and shiny skin tone
+		var skull = ColorRect.new(); skull.size = Vector2(38,30); skull.position = Vector2(-19,-54)
+		skull.color = Color(0.82,0.65,0.50); pivot.add_child(skull)
+		# Forehead shine (bald highlight)
+		var shine = ColorRect.new(); shine.size = Vector2(12,6); shine.position = Vector2(-4,-52)
+		shine.color = Color(0.95,0.82,0.70); pivot.add_child(shine)
+		# Wide jowls / lower face
+		var face_lower = ColorRect.new(); face_lower.size = Vector2(34,14); face_lower.position = Vector2(-17,-28)
+		face_lower.color = Color(0.78,0.60,0.46); pivot.add_child(face_lower)
+		var jowl_l = ColorRect.new(); jowl_l.size = Vector2(8,12); jowl_l.position = Vector2(-23,-30)
+		jowl_l.color = Color(0.74,0.57,0.44); pivot.add_child(jowl_l)
+		var jowl_r = ColorRect.new(); jowl_r.size = Vector2(8,12); jowl_r.position = Vector2(15,-30)
+		jowl_r.color = Color(0.74,0.57,0.44); pivot.add_child(jowl_r)
+		# White shirt collar
+		var collar = ColorRect.new(); collar.size = Vector2(12,8); collar.position = Vector2(-6,-22)
 		collar.color = Color(0.95,0.95,0.95); pivot.add_child(collar)
 		# Red tie
-		var tie = ColorRect.new(); tie.size = Vector2(6,18); tie.position = Vector2(-3,-22)
-		tie.color = Color(0.85,0.12,0.12); pivot.add_child(tie)
-		# Eyes (dark beady)
-		var eye_l = ColorRect.new(); eye_l.size = Vector2(4,4); eye_l.position = Vector2(-9,-44)
-		eye_l.color = Color(0.1,0.1,0.1); pivot.add_child(eye_l)
-		var eye_r = ColorRect.new(); eye_r.size = Vector2(4,4); eye_r.position = Vector2(5,-44)
-		eye_r.color = Color(0.1,0.1,0.1); pivot.add_child(eye_r)
-		# Frown
-		var frown = ColorRect.new(); frown.size = Vector2(12,3); frown.position = Vector2(-6,-36)
-		frown.color = Color(0.4,0.25,0.2); pivot.add_child(frown)
+		var tie = ColorRect.new(); tie.size = Vector2(6,20); tie.position = Vector2(-3,-20)
+		tie.color = Color(0.85,0.10,0.10); pivot.add_child(tie)
+		var tie_knot = ColorRect.new(); tie_knot.size = Vector2(8,5); tie_knot.position = Vector2(-4,-21)
+		tie_knot.color = Color(0.7,0.08,0.08); pivot.add_child(tie_knot)
+		# Beady eyes
+		var eye_l = ColorRect.new(); eye_l.size = Vector2(5,5); eye_l.position = Vector2(-10,-46)
+		eye_l.color = Color(0.05,0.05,0.05); pivot.add_child(eye_l)
+		var eye_r = ColorRect.new(); eye_r.size = Vector2(5,5); eye_r.position = Vector2(5,-46)
+		eye_r.color = Color(0.05,0.05,0.05); pivot.add_child(eye_r)
+		# Eye whites
+		var ew_l = ColorRect.new(); ew_l.size = Vector2(3,3); ew_l.position = Vector2(-9,-45)
+		ew_l.color = Color(0.9,0.9,0.9); pivot.add_child(ew_l)
+		var ew_r = ColorRect.new(); ew_r.size = Vector2(3,3); ew_r.position = Vector2(6,-45)
+		ew_r.color = Color(0.9,0.9,0.9); pivot.add_child(ew_r)
+		# Nose
+		var nose = ColorRect.new(); nose.size = Vector2(6,8); nose.position = Vector2(-3,-40)
+		nose.color = Color(0.70,0.52,0.40); pivot.add_child(nose)
+		# Frown / grimace
+		var frown = ColorRect.new(); frown.size = Vector2(14,3); frown.position = Vector2(-7,-30)
+		frown.color = Color(0.35,0.20,0.16); pivot.add_child(frown)
+		var frown_l = ColorRect.new(); frown_l.size = Vector2(3,4); frown_l.position = Vector2(-7,-33)
+		frown_l.color = Color(0.35,0.20,0.16); pivot.add_child(frown_l)
+		var frown_r = ColorRect.new(); frown_r.size = Vector2(3,4); frown_r.position = Vector2(4,-33)
+		frown_r.color = Color(0.35,0.20,0.16); pivot.add_child(frown_r)
 	else:
 		var head = ColorRect.new(); head.size = Vector2(24,20); head.position = Vector2(-12,-42); head.color = c
 		pivot.add_child(head)
@@ -877,14 +911,20 @@ func _process_players(delta):
 				_do_attack(pd, 85.0, dmg, kb)
 
 			if Input.is_action_just_pressed("p1_dash_atk") and pd.attack_cd <= 0 and stam >= STAM_ATTACK+8:
-				pd.dash_t = 0.12; pd.attack_cd = 0.55; stam -= STAM_ATTACK+8
-				pd.velocity.y = -120.0
-				_do_attack(pd, 100.0, 12.0+pd.stat_str, 300.0)
-				_spawn_particles(pd.node.position, Color(1.0,0.6,0.1), 10, Vector2(110,25), 0.4, 4.0)
-				_show_popup(pd, "LUNGE!", Color(1.0,0.6,0.2))
+				if pd.archetype == "droid netanyahu":
+					_activate_iron_dome(pd)
+					stam -= STAM_ATTACK + 8
+				else:
+					pd.dash_t = 0.12; pd.attack_cd = 0.55; stam -= STAM_ATTACK+8
+					pd.velocity.y = -120.0
+					_do_attack(pd, 100.0, 12.0+pd.stat_str, 300.0)
+					_spawn_particles(pd.node.position, Color(1.0,0.6,0.1), 10, Vector2(110,25), 0.4, 4.0)
+					_show_popup(pd, "LUNGE!", Color(1.0,0.6,0.2))
 
 			if Input.is_action_just_pressed("p1_special") and pd.special_cd <= 0 and stam >= STAM_SPECIAL:
-				pd.special_cd = 4.0; stam -= STAM_SPECIAL
+				stam -= STAM_SPECIAL
+				if pd.archetype != "droid netanyahu":
+					pd.special_cd = 4.0
 				_do_special(pd)
 
 			if Input.is_action_just_pressed("p1_emote"):
@@ -1091,10 +1131,25 @@ func _do_special(pd:PlayerData):
 			_show_popup(pd, "COUNTER!", Color(1.0,1.0,0.3))
 			_spawn_particles(pd.node.position, Color(1.0,1.0,0.3), 10, Vector2(60,60), 0.4, 4.0)
 		"droid netanyahu":
+			pd.special_cd = 10.0  # Genocide takes 10s to recharge
 			_do_genocide(pd)
 		_:
 			_do_attack(pd, 110.0, 20.0, 360.0)
 			_spawn_particles(pd.node.position, Color(1.0,0.8,0.2), 12, Vector2(100,100), 0.5)
+
+func _activate_iron_dome(pd: PlayerData):
+	if pd.counter_active > 0: return  # already active
+	pd.counter_active = 4.0
+	_show_popup(pd, "🛡 IRON DOME", Color(0.3, 0.7, 1.0))
+	# Blue dome visual
+	var dome = ColorRect.new()
+	dome.size = Vector2(90, 90); dome.position = pd.node.position + Vector2(-45, -70)
+	dome.color = Color(0.2, 0.6, 1.0, 0.25); dome.z_index = 3
+	world.add_child(dome)
+	_spawn_particles(pd.node.position, Color(0.3, 0.7, 1.0), 20, Vector2(80, 80), 0.6, 4.0)
+	var tw = create_tween()
+	tw.tween_property(dome, "modulate:a", 0.0, 4.0)
+	tw.tween_callback(dome.queue_free)
 
 func _do_genocide(pd: PlayerData):
 	_show_popup(pd, "GENOCIDE", Color(1.0, 0.1, 0.1))
