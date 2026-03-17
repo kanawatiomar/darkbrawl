@@ -118,6 +118,15 @@ const ARCHETYPES = [
 		"special": "Counter — brief parry window; if hit during it, reflect damage × 2"
 	},
 	{
+		"name": "Cardboard Ayatollah", "icon": "☪️",
+		"tagline": "He doesn't fight wars. He just starts them.",
+		"stats": {"str":1,"dex":-2,"int":3,"vit":2,"end":1},
+		"locked_out": ["dex"],
+		"color": Color(0.10,0.12,0.10),
+		"weapons": ["Fatwa Scroll","Revolutionary Guard Staff","Oil Barrel"],
+		"special": "DEATH TO AMERICA — massive shockwave knocks everyone off the map  |  Q = Proxy Army"
+	},
+	{
 		"name": "Droid Netanyahu", "icon": "🎩",
 		"tagline": "Ceasefire is not in my vocabulary.",
 		"stats": {"str":2,"dex":-1,"int":2,"vit":2,"end":0},
@@ -762,7 +771,50 @@ func _spawn_player(peer_id: int):
 	var arm_r = ColorRect.new(); arm_r.name = "arm_r"; arm_r.size = Vector2(8,18); arm_r.position = Vector2(15,-18)
 	arm_r.color = lite; pivot.add_child(arm_r); pd.arm_r = arm_r
 
-	if pd.archetype == "droid netanyahu":
+	if pd.archetype == "cardboard ayatollah":
+		# Override body to dark robes
+		body_rect.color  = Color(0.08,0.10,0.08)
+		arm_l.color      = Color(0.08,0.10,0.08)
+		arm_r.color      = Color(0.08,0.10,0.08)
+		leg_l.color      = Color(0.06,0.08,0.06)
+		leg_r.color      = Color(0.06,0.08,0.06)
+		body_rect.size   = Vector2(36,32); body_rect.position = Vector2(-18,-24)
+		var hem = ColorRect.new(); hem.size = Vector2(44,12); hem.position = Vector2(-22,6)
+		hem.color = Color(0.07,0.09,0.07); pivot.add_child(hem)
+		var face = ColorRect.new(); face.size = Vector2(28,24); face.position = Vector2(-14,-46)
+		face.color = Color(0.65,0.52,0.38); pivot.add_child(face)
+		# Black turban
+		var turban_base = ColorRect.new(); turban_base.size = Vector2(34,10); turban_base.position = Vector2(-17,-52)
+		turban_base.color = Color(0.04,0.04,0.04); pivot.add_child(turban_base)
+		var turban_mid  = ColorRect.new(); turban_mid.size  = Vector2(28,10); turban_mid.position  = Vector2(-14,-60)
+		turban_mid.color = Color(0.05,0.05,0.05); pivot.add_child(turban_mid)
+		var turban_top  = ColorRect.new(); turban_top.size  = Vector2(20,8);  turban_top.position  = Vector2(-10,-68)
+		turban_top.color = Color(0.06,0.06,0.06); pivot.add_child(turban_top)
+		var wrap = ColorRect.new(); wrap.size = Vector2(34,2); wrap.position = Vector2(-17,-50)
+		wrap.color = Color(0.0,0.28,0.08); pivot.add_child(wrap)
+		# Long beard
+		var beard_main = ColorRect.new(); beard_main.size = Vector2(22,28); beard_main.position = Vector2(-11,-26)
+		beard_main.color = Color(0.70,0.68,0.65); pivot.add_child(beard_main)
+		var beard_point = ColorRect.new(); beard_point.size = Vector2(10,12); beard_point.position = Vector2(-5,0)
+		beard_point.color = Color(0.68,0.66,0.63); pivot.add_child(beard_point)
+		var beard_tip = ColorRect.new(); beard_tip.size = Vector2(6,8); beard_tip.position = Vector2(-3,10)
+		beard_tip.color = Color(0.66,0.64,0.61); pivot.add_child(beard_tip)
+		# Eyes + unibrow
+		var eye_l = ColorRect.new(); eye_l.size = Vector2(5,4); eye_l.position = Vector2(-10,-42)
+		eye_l.color = Color(0.05,0.05,0.05); pivot.add_child(eye_l)
+		var eye_r = ColorRect.new(); eye_r.size = Vector2(5,4); eye_r.position = Vector2(5,-42)
+		eye_r.color = Color(0.05,0.05,0.05); pivot.add_child(eye_r)
+		var brow = ColorRect.new(); brow.size = Vector2(22,3); brow.position = Vector2(-11,-46)
+		brow.color = Color(0.10,0.08,0.06); pivot.add_child(brow)
+		var nose_a = ColorRect.new(); nose_a.size = Vector2(7,9); nose_a.position = Vector2(-4,-38)
+		nose_a.color = Color(0.58,0.46,0.34); pivot.add_child(nose_a)
+		# Cardboard texture patches on robe
+		var patch1 = ColorRect.new(); patch1.size = Vector2(8,6); patch1.position = Vector2(-14,-10)
+		patch1.color = Color(0.55,0.42,0.28,0.4); pivot.add_child(patch1)
+		var patch2 = ColorRect.new(); patch2.size = Vector2(6,5); patch2.position = Vector2(6,-18)
+		patch2.color = Color(0.55,0.42,0.28,0.4); pivot.add_child(patch2)
+
+	elif pd.archetype == "droid netanyahu":
 		# Override arm/leg color to suit colors (navy, no purple bleed)
 		arm_l.color = Color(0.12,0.16,0.38)
 		arm_r.color = Color(0.12,0.16,0.38)
@@ -911,7 +963,10 @@ func _process_players(delta):
 				_do_attack(pd, 85.0, dmg, kb)
 
 			if Input.is_action_just_pressed("p1_dash_atk") and pd.attack_cd <= 0 and stam >= STAM_ATTACK+8:
-				if pd.archetype == "droid netanyahu":
+				if pd.archetype == "cardboard ayatollah":
+					_activate_proxy_army(pd)
+					stam -= STAM_ATTACK + 8
+				elif pd.archetype == "droid netanyahu":
 					_activate_iron_dome(pd)
 					stam -= STAM_ATTACK + 8
 				else:
@@ -1130,12 +1185,95 @@ func _do_special(pd:PlayerData):
 			pd.counter_active = 0.6
 			_show_popup(pd, "COUNTER!", Color(1.0,1.0,0.3))
 			_spawn_particles(pd.node.position, Color(1.0,1.0,0.3), 10, Vector2(60,60), 0.4, 4.0)
+		"cardboard ayatollah":
+			pd.special_cd = 9.0
+			_do_death_to_america(pd)
 		"droid netanyahu":
-			pd.special_cd = 10.0  # Genocide takes 10s to recharge
+			pd.special_cd = 10.0
 			_do_genocide(pd)
 		_:
 			_do_attack(pd, 110.0, 20.0, 360.0)
 			_spawn_particles(pd.node.position, Color(1.0,0.8,0.2), 12, Vector2(100,100), 0.5)
+
+func _do_death_to_america(pd: PlayerData):
+	_show_popup(pd, "DEATH TO AMERICA", Color(0.1,0.8,0.2))
+	var vp = get_viewport().get_visible_rect().size
+	# Screen flash green
+	var flash = ColorRect.new(); flash.color = Color(0.0,0.4,0.1,0.0)
+	flash.size = vp; flash.position = Vector2.ZERO; flash.z_index = 20
+	world.add_child(flash)
+	var ftw = create_tween()
+	ftw.tween_property(flash,"color:a",0.5,0.1)
+	ftw.tween_property(flash,"color:a",0.0,0.5)
+	ftw.tween_callback(flash.queue_free)
+	# Massive expanding shockwave ring from Ayatollah's position
+	for ring in range(3):
+		await get_tree().create_timer(ring * 0.12).timeout
+		var ring_rect = ColorRect.new()
+		ring_rect.size = Vector2(20,20)
+		ring_rect.position = pd.node.position - Vector2(10,10)
+		ring_rect.color = Color(0.1,0.8,0.2,0.8); ring_rect.z_index = 4
+		world.add_child(ring_rect)
+		var ring_tween = create_tween()
+		ring_tween.tween_property(ring_rect,"size",Vector2(600,600),0.55)
+		ring_tween.parallel().tween_property(ring_rect,"position",pd.node.position-Vector2(300,300),0.55)
+		ring_tween.parallel().tween_property(ring_rect,"modulate:a",0.0,0.55)
+		ring_tween.tween_callback(ring_rect.queue_free)
+	# Massive knockback on everyone
+	for pid in players:
+		if pid == pd.peer_id: continue
+		var target:PlayerData = players[pid]
+		if target.is_dead or not target.node: continue
+		var dir = (target.node.global_position - pd.node.global_position).normalized()
+		target.damage_pct += 20.0
+		target.knockback = dir * 700.0 * (1.0 + target.damage_pct / 60.0)
+		_flash_player(target, Color(0.1,0.9,0.2))
+	# Screen shake
+	var stw = create_tween()
+	stw.tween_property(world,"position",Vector2(12,8),0.06)
+	stw.tween_property(world,"position",Vector2(-10,-6),0.06)
+	stw.tween_property(world,"position",Vector2.ZERO,0.1)
+
+func _activate_proxy_army(pd: PlayerData):
+	_show_popup(pd, "PROXY ARMY!", Color(0.6,0.9,0.3))
+	var vp = get_viewport().get_visible_rect().size
+	# Spawn 5 cardboard soldier projectiles that fly across the screen
+	for i in range(5):
+		await get_tree().create_timer(i * 0.1).timeout
+		var soldier = ColorRect.new()
+		soldier.size = Vector2(12,20)
+		var start_y = pd.node.position.y + randf_range(-60,60)
+		var dir_x = pd.facing
+		soldier.position = Vector2(pd.node.position.x + dir_x*20, start_y)
+		soldier.color = Color(0.55,0.42,0.28)  # cardboard brown
+		soldier.z_index = 3
+		world.add_child(soldier)
+		# Lil head on the soldier
+		var s_head = ColorRect.new(); s_head.size = Vector2(10,10); s_head.position = Vector2(1,-10)
+		s_head.color = Color(0.65,0.52,0.38); soldier.add_child(s_head)
+		var s_gun = ColorRect.new(); s_gun.size = Vector2(14,3); s_gun.position = Vector2(dir_x>0 ? 8 : -14,4)
+		s_gun.color = Color(0.2,0.2,0.2); soldier.add_child(s_gun)
+
+		var fly = create_tween()
+		fly.tween_property(soldier,"position:x", soldier.position.x + dir_x * vp.x * 1.2, 1.2)
+		fly.parallel().tween_property(soldier,"modulate:a",0.0,1.2)
+		fly.tween_callback(soldier.queue_free)
+
+		# Check hits during flight
+		var check_tween = create_tween()
+		for frame in range(8):
+			check_tween.tween_interval(0.12)
+			check_tween.tween_callback(func():
+				if not is_instance_valid(soldier): return
+				for pid2 in players:
+					if pid2 == pd.peer_id: continue
+					var t:PlayerData = players[pid2]
+					if not t.is_dead and t.node:
+						if soldier.position.distance_to(t.node.global_position) < 55:
+							t.damage_pct += 7.0
+							t.knockback += Vector2(dir_x*200,-50) * (1.0+t.damage_pct/80.0)
+							_flash_player(t,Color(0.6,0.9,0.3))
+			)
 
 func _activate_iron_dome(pd: PlayerData):
 	if pd.counter_active > 0: return  # already active
