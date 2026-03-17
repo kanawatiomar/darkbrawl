@@ -1141,15 +1141,57 @@ func _activate_iron_dome(pd: PlayerData):
 	if pd.counter_active > 0: return  # already active
 	pd.counter_active = 4.0
 	_show_popup(pd, "🛡 IRON DOME", Color(0.3, 0.7, 1.0))
-	# Blue dome visual
-	var dome = ColorRect.new()
-	dome.size = Vector2(90, 90); dome.position = pd.node.position + Vector2(-45, -70)
-	dome.color = Color(0.2, 0.6, 1.0, 0.25); dome.z_index = 3
-	world.add_child(dome)
-	_spawn_particles(pd.node.position, Color(0.3, 0.7, 1.0), 20, Vector2(80, 80), 0.6, 4.0)
-	var tw = create_tween()
-	tw.tween_property(dome, "modulate:a", 0.0, 4.0)
-	tw.tween_callback(dome.queue_free)
+
+	# Big yarmulke on his head — attaches to pivot so it moves with him
+	var yamulke_root = Node2D.new()
+	yamulke_root.name = "Yamulke"
+	pd.pivot.add_child(yamulke_root)
+
+	# Main dome (dark black velvet)
+	var dome_main = ColorRect.new()
+	dome_main.size = Vector2(42, 18)
+	dome_main.position = Vector2(-21, -62)
+	dome_main.color = Color(0.08, 0.06, 0.08)
+	yamulke_root.add_child(dome_main)
+
+	# Rounded top — stacked rects to fake a dome shape
+	var dome_mid = ColorRect.new()
+	dome_mid.size = Vector2(34, 12)
+	dome_mid.position = Vector2(-17, -72)
+	dome_mid.color = Color(0.10, 0.08, 0.10)
+	yamulke_root.add_child(dome_mid)
+
+	var dome_top = ColorRect.new()
+	dome_top.size = Vector2(22, 8)
+	dome_top.position = Vector2(-11, -78)
+	dome_top.color = Color(0.12, 0.10, 0.12)
+	yamulke_root.add_child(dome_top)
+
+	# Gold rim/edge
+	var rim = ColorRect.new()
+	rim.size = Vector2(42, 3)
+	rim.position = Vector2(-21, -60)
+	rim.color = Color(0.85, 0.72, 0.25)
+	yamulke_root.add_child(rim)
+
+	# Small gold Star of David detail (two overlapping rects approximating ✡)
+	var star1 = ColorRect.new(); star1.size = Vector2(10, 3); star1.position = Vector2(-5, -68)
+	star1.color = Color(0.85, 0.72, 0.25); yamulke_root.add_child(star1)
+	var star2 = ColorRect.new(); star2.size = Vector2(3, 10); star2.position = Vector2(-2, -71)
+	star2.color = Color(0.85, 0.72, 0.25); yamulke_root.add_child(star2)
+
+	# Pop-in scale animation
+	yamulke_root.scale = Vector2(0.2, 0.2)
+	var pop = create_tween()
+	pop.tween_property(yamulke_root, "scale", Vector2(1.2, 1.2), 0.12)
+	pop.tween_property(yamulke_root, "scale", Vector2(1.0, 1.0), 0.08)
+
+	# Auto-remove when Iron Dome expires
+	await get_tree().create_timer(4.0).timeout
+	if is_instance_valid(yamulke_root):
+		var shrink = create_tween()
+		shrink.tween_property(yamulke_root, "scale", Vector2(0.0, 0.0), 0.15)
+		shrink.tween_callback(yamulke_root.queue_free)
 
 func _do_genocide(pd: PlayerData):
 	_show_popup(pd, "GENOCIDE", Color(1.0, 0.1, 0.1))
